@@ -35,3 +35,15 @@
 - [x] Add Platform selector to form (Meta / TikTok / YouTube / Other)
 - [x] Enforce Meta word count: 75–100 words max via system prompt when Meta is selected
 - [x] Update vitest tests: 12/12 passing (added sessionId, optional fields, platform tests)
+
+## Phase 6: Structural Refactor (Session 3)
+- [x] Replace Hook A / Hook B inside one script with PAIR-based generation (2 separate scripts per pair)
+- [x] Each script in a pair has its own hook line, its own hook angle, and its own unique name
+- [x] Hook angle is the most impactful word/phrase from the hook (used for naming and data analysis)
+- [x] Update hook categories to exact 10 user-provided types (Symptom/Compensation/Betrayal/Curiosity/Story/Pattern/Urgency/Family/Question/Authority)
+- [x] Remove hookAngle input field — AI now assigns hook angles per script automatically
+- [x] Add "Pairs to Generate" control (1-5 pairs) — each pair = 2 scripts
+- [x] Update KB Section 3 (naming convention) with new pair structure and examples
+- [x] Update KB Section 4 (hook categories) with exact 10 types and descriptions
+- [x] Add Section 13 (Permanent Memory) to KB with all structural decisions
+- [x] Update vitest tests: 13/13 passing (new pair structure, hook angle assertions, category list)

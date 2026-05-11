@@ -53,17 +53,26 @@ Every script must follow this structure exactly.
 `LAWSUIT (Number) (Hook Category) (Hook Angle) (Copywriter Initials) (Aggressive Scale)`
 
 **Example:**
-`HM 13 (Pattern) (Can't) (Mo) (1-5)`
+`HM 13 (Curiosity) (hid) (Mo) (2-5)`
 
 **Parameters:**
 | Parameter | Description | Example |
 |---|---|---|
 | LAWSUIT | Lawsuit abbreviation | HM, DUP, SAB, CAW, RUP |
 | Number | Script number | 13 |
-| Hook Category | From the 10 categories below | (Pattern), (Curiosity), (Story) |
-| Hook Angle | Short description of the hook's angle | (Can't), (Did you know), (Break it down) |
+| Hook Category | One of the 10 valid categories from Section 4 | (Pattern), (Curiosity), (Story) |
+| Hook Angle | The single most impactful word or short phrase from the hook — the word that will be used to identify and analyse performance | (hid), (infuriating), (Can't), (Did you know) |
 | Copywriter Initials | Who wrote it | (Mo), (Cha), (Jor), (AK) |
 | Aggressive Scale | Compliance level 1–5 | (1-5), (2-5), (3-5) |
+
+**CRITICAL — Script Structure (Updated):**
+There is NO “Hook A” and “Hook B” inside a single script. Instead, each generation produces PAIRS of fully separate, independently named scripts. Each script in the pair shares the same body and CTA but has a different opening hook — and therefore a different hook angle in its name.
+
+**Example of a pair:**
+- `HM 2 (Curiosity) (hid) (Mo) (2-5)` — opens with the word “hid” as the hook angle
+- `HM 2 (Curiosity) (infuriating) (Mo) (2-5)` — opens with the word “infuriating” as the hook angle
+
+Both scripts share the same body and CTA. Only the hook line differs. The hook angle in the name is the word with the most impact — the one that will drive data analysis.
 
 **For written scripts (no production yet):** Stop at (Copywriter Initials) (Aggressive Scale). Do NOT add production parameters (visual style, POV, gender, editor) until the script moves to production.
 
@@ -74,18 +83,20 @@ Every script must follow this structure exactly.
 
 ## SECTION 4 — HOOK CATEGORIES (10 Types)
 
-| # | Code | Description |
-|---|---|---|
-| 1 | (Symptom) | Lead with the medical condition or diagnosis |
-| 2 | (Compensation) | Lead with money/settlements/payout |
-| 3 | (Betrayal) | Anger — manufacturer/company hid the truth |
-| 4 | (Curiosity) | Intrigue — something happened you need to know |
-| 5 | (Story) | First person, emotional personal journey |
-| 6 | (Pattern) | Pattern interrupt — starts with doubt, humour, or slang to disarm |
-| 7 | (Urgency) | Time is running out — do this now |
-| 8 | (Family) | Third party angle — about a child, parent, or friend |
-| 9 | (Question) | Opens with a direct question to the viewer |
-| 10 | (Authority) | Leads with science, data, or official findings |
+These are the ONLY valid hook category codes. Always use exactly one of these when naming a script.
+
+| # | Code | Full Name | Description |
+|---|---|---|---|
+| 1 | (Symptom) | 🚨 Symptom/Diagnosis First | Lead with the medical condition or diagnosis |
+| 2 | (Compensation) | 💰 Compensation/Payout | Lead with money/settlements — what they could get |
+| 3 | (Betrayal) | 😤 Betrayal/They Never Warned You | Anger — manufacturer/company hid the truth from victims |
+| 4 | (Curiosity) | 🤔 Curiosity/Big News | Intrigue — something happened you need to know about |
+| 5 | (Story) | 👤 Personal Story/Testimonial | First person, emotional personal journey |
+| 6 | (Pattern) | 😂 Pattern Interrupt/Skeptic | Starts with doubt, humour, or slang to disarm the viewer |
+| 7 | (Urgency) | ⏰ Urgency/Direct CTA | Time is running out — do this now |
+| 8 | (Family) | 🧒 Third Party/Family Angle | About a child, parent, or friend — not the victim directly |
+| 9 | (Question) | ❓ Question Hook | Opens with a direct question to the viewer (e.g. "Did you ever get the Depo shot?") |
+| 10 | (Authority) | 🔍 Research/Authority | Leads with science, data, or official findings (e.g. "New research linked Depo-Provera…" / "Court documents reveal…") |
 
 ---
 
@@ -558,3 +569,45 @@ Are you owed thousands in social media compensation in 2026? Find out now in 30 
 | — | Gemini 2.5 Flash | Iter 2 (Synonym) | Used "remuneration" — wrong register. Too formal, not conversational. |
 | — | Gemini 2.5 Flash | Iter 5 (Aggression) | Made it LESS aggressive instead of MORE aggressive. Read the brief carefully. |
 | — | Both AIs | General | Neither AI fully rewrote the body when the iteration type required it. The body is not a fixed block — it must change when the tier, angle, or POV changes. |
+
+---
+
+## SECTION 13 — STRUCTURAL DECISIONS & USER NOTES (Permanent Memory)
+
+These are decisions made by Mo / AKD Media that must never be forgotten or overridden.
+
+### Script Output Structure (May 2026)
+- Scripts are NOT generated with a "Hook A" and "Hook B" inside a single script block.
+- Instead, each generation slot produces a PAIR of fully separate scripts.
+- Each script in the pair has the same body and CTA, but a different opening hook line.
+- Each script gets its own unique name with its own hook angle.
+- Example: generating "3 scripts" actually produces 3 pairs = 6 individually named scripts.
+- The hook angle in the name is the most impactful word from the hook — used for data analysis.
+
+### Hook Category Naming (May 2026)
+- The hook category in the script name must always be one of the 10 valid codes from Section 4.
+- The hook angle is a free-form short word or phrase — it names the emotional or conceptual "key" of that specific hook.
+- Example: `HM 2 (Curiosity) (hid) (Mo) (2-5)` — "hid" is the hook angle because the hook revolves around the idea that manufacturers HID the truth.
+- Example: `HM 2 (Curiosity) (infuriating) (Mo) (2-5)` — "infuriating" is the hook angle because the emotional energy of that hook is outrage/infuriation.
+
+### Hook Categories — Exact Valid List (May 2026)
+Only these 10 are valid. No others should be used or suggested:
+1. Symptom
+2. Compensation
+3. Betrayal
+4. Curiosity
+5. Story
+6. Pattern
+7. Urgency
+8. Family
+9. Question
+10. Authority
+
+### Platform Word Count Rules (May 2026)
+- Meta (Facebook/Instagram): 75–100 words maximum
+- TikTok / YouTube Shorts: 100–150 words
+- Default: 100–150 words
+
+### Banned Opening Words (May 2026)
+- NEVER begin any hook or script with the word "Imagine". Hard ban, no exceptions.
+

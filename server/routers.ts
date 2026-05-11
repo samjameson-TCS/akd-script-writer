@@ -30,7 +30,6 @@ function appendToKB(content: string): void {
 function appendFeedbackToKB(scriptName: string, feedback: string): void {
   const timestamp = new Date().toISOString();
   const entry = `\n- [${timestamp}] **${scriptName}**: ${feedback}`;
-  // Find or append to feedback log section
   let kb = readKB();
   if (kb.includes("## FEEDBACK LOG")) {
     kb = kb + entry;
@@ -65,17 +64,34 @@ function getLawsuitCode(lawsuit: string): string {
   return LAWSUIT_CODES[lawsuit] ?? lawsuit.substring(0, 3).toUpperCase();
 }
 
-function buildScriptName(lawsuit: string, hookCategory: string | undefined, hookAngle: string | undefined, scriptNumber: number, aggressiveScale: number): string {
+function buildScriptName(
+  lawsuit: string,
+  hookCategory: string | undefined,
+  hookAngle: string,
+  scriptNumber: number,
+  aggressiveScale: number
+): string {
   const code = getLawsuitCode(lawsuit);
   const catPart = hookCategory ? ` (${hookCategory})` : "";
-  const anglePart = hookAngle ? ` (${hookAngle})` : "";
-  return `${code} ${scriptNumber}${catPart}${anglePart} (Mo) (${aggressiveScale}-5)`;
+  // hookAngle is always present per-script (AI assigns it)
+  return `${code} ${scriptNumber}${catPart} (${hookAngle}) (Mo) (${aggressiveScale}-5)`;
 }
 
 // ─── Lawsuits & options ───────────────────────────────────────────────────────
 
 const LAWSUITS = Object.keys(LAWSUIT_CODES);
-const HOOK_CATEGORIES = ["Symptom", "Compensation", "Educational", "Story", "Curiosity", "Pattern", "Social Proof", "Authority", "Urgency", "Emotional"];
+const HOOK_CATEGORIES = [
+  "Symptom",       // 🚨 Symptom/Diagnosis First — lead with the medical condition
+  "Compensation",  // 💰 Compensation/Payout — lead with money/settlements
+  "Betrayal",      // 😤 Betrayal/They Never Warned You — anger, manufacturer hid the truth
+  "Curiosity",     // 🤔 Curiosity/Big News — intrigue, something happened you need to know
+  "Story",         // 👤 Personal Story/Testimonial — first person, emotional journey
+  "Pattern",       // 😂 Pattern Interrupt/Skeptic — starts with doubt, humour, or slang to disarm
+  "Urgency",       // ⏰ Urgency/Direct CTA — time is running out, do this now
+  "Family",        // 🧒 Third Party/Family Angle — about a child, parent, or friend
+  "Question",      // ❓ Question Hook — opens with a direct question to the viewer
+  "Authority",     // 🔍 Research/Authority — leads with science, data, or official findings
+];
 const AVATARS = ["Parents (30-55)", "Young Adults (18-30)", "Patients", "Veterans", "General Public"];
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -104,21 +120,19 @@ export const appRouter = router({
       .input(z.object({
         lawsuit: z.string(),
         hookCategory: z.string().optional(),
-        hookAngle: z.string().optional(),
         aggressiveScale: z.number().min(1).max(5),
         avatar: z.string(),
         platform: z.enum(["Meta", "TikTok", "YouTube", "Other"]).default("Other"),
         referenceScript: z.string().optional(),
         extraInstructions: z.string().optional(),
         scriptNumberStart: z.number().default(1),
+        pairsCount: z.number().min(1).max(5).default(3),
       }))
       .mutation(async ({ input }) => {
         const kb = readKB();
 
         const wordCountRule = input.platform === "Meta"
           ? "Scripts for Meta MUST be 75–100 words maximum. Be ruthless — cut every unnecessary word."
-          : input.platform === "TikTok" || input.platform === "YouTube"
-          ? "Keep scripts 100–150 words."
           : "Keep scripts 100–150 words.";
 
         const systemPrompt = `You are the AKD Media AI Script Writer. You have been trained on the following knowledge base. Read it completely before writing any script.
@@ -126,43 +140,35 @@ export const appRouter = router({
 ${kb}
 
 CRITICAL RULES:
-- Always follow the 3-step structure: HOOK A + HOOK B → BODY → CTA
+- Each generation produces PAIRS of scripts. Each pair shares the same body and CTA, but has TWO different hook lines with different hook angles.
+- The hook angle is the single most impactful word or short phrase from the hook — used for naming and data analysis.
 - Never use banned words from the compliance section
 - Match the aggressive scale exactly as requested
 - Write for the specified avatar
 - ${wordCountRule}
 - Sound conversational and human — never robotic or formal
-- ABSOLUTE BAN: Never begin Hook A, Hook B, or any part of the script with the word "Imagine". This is non-negotiable. Find a different opening.
-- Return EXACTLY 3 scripts as a JSON array`;
+- ABSOLUTE BAN: Never begin any hook with the word "Imagine". This is non-negotiable.
+- Return EXACTLY ${input.pairsCount} pairs as a JSON array`;
 
-        const userPrompt = `Generate 3 unique script iterations for the following parameters:
+        const userPrompt = `Generate ${input.pairsCount} script pairs for the following parameters:
 
 Lawsuit: ${input.lawsuit}
 Platform: ${input.platform}
-Hook Category: ${input.hookCategory ?? "(AI decides)"}
-Hook Angle: ${input.hookAngle ?? "(AI decides)"}
+Hook Category: ${input.hookCategory ?? "(AI decides — must be one of the 10 valid categories from Section 4)"}
 Aggressive Scale: ${input.aggressiveScale}/5
 Target Avatar: ${input.avatar}
 ${input.referenceScript ? `Reference Script (iterate from this):\n${input.referenceScript}` : ""}
 ${input.extraInstructions ? `Extra Instructions: ${input.extraInstructions}` : ""}
 
-Return a JSON array of exactly 3 objects, each with:
-- "hookAngle": the specific hook angle used (short, 2-3 words)
-- "hookA": first hook line
-- "hookB": second hook line  
-- "body": the body paragraph
-- "cta": the call to action
+Each pair has:
+- Two hook variants (hookLine1 and hookLine2) — same emotional territory, different wording and angle
+- hookAngle1: the most impactful word/phrase from hookLine1 (1-3 words, lowercase)
+- hookAngle2: the most impactful word/phrase from hookLine2 (1-3 words, lowercase)
+- hookCategory: which of the 10 valid categories this pair belongs to (Symptom/Compensation/Betrayal/Curiosity/Story/Pattern/Urgency/Family/Question/Authority)
+- body: the shared body paragraph (same for both scripts in the pair)
+- cta: the shared call to action (same for both scripts in the pair)
 
-Example format:
-[
-  {
-    "hookAngle": "Can't Believe",
-    "hookA": "...",
-    "hookB": "...",
-    "body": "...",
-    "cta": "..."
-  }
-]`;
+Return a JSON array of exactly ${input.pairsCount} pair objects.`;
 
         const response = await invokeLLM({
           messages: [
@@ -182,13 +188,15 @@ Example format:
                     items: {
                       type: "object",
                       properties: {
-                        hookAngle: { type: "string" },
-                        hookA: { type: "string" },
-                        hookB: { type: "string" },
+                        hookCategory: { type: "string" },
+                        hookAngle1: { type: "string" },
+                        hookLine1: { type: "string" },
+                        hookAngle2: { type: "string" },
+                        hookLine2: { type: "string" },
                         body: { type: "string" },
                         cta: { type: "string" },
                       },
-                      required: ["hookAngle", "hookA", "hookB", "body", "cta"],
+                      required: ["hookCategory", "hookAngle1", "hookLine1", "hookAngle2", "hookLine2", "body", "cta"],
                       additionalProperties: false,
                     },
                   },
@@ -202,16 +210,53 @@ Example format:
 
         const rawContent = response.choices[0]?.message?.content;
         const content = typeof rawContent === "string" ? rawContent : "{}";
-        const parsed = JSON.parse(content) as { scripts: Array<{ hookAngle: string; hookA: string; hookB: string; body: string; cta: string }> };
+        const parsed = JSON.parse(content) as {
+          scripts: Array<{
+            hookCategory: string;
+            hookAngle1: string;
+            hookLine1: string;
+            hookAngle2: string;
+            hookLine2: string;
+            body: string;
+            cta: string;
+          }>
+        };
 
-        // Build named scripts
-        const namedScripts = parsed.scripts.map((s, i) => ({
-          name: buildScriptName(input.lawsuit, input.hookCategory, s.hookAngle, input.scriptNumberStart + i, input.aggressiveScale),
-          hookA: s.hookA,
-          hookB: s.hookB,
-          body: s.body,
-          cta: s.cta,
-        }));
+        // Build flat list of named scripts — each pair becomes 2 scripts
+        const namedScripts: Array<{
+          name: string;
+          hook: string;
+          hookAngle: string;
+          body: string;
+          cta: string;
+          pairIndex: number;
+          variantIndex: number;
+        }> = [];
+
+        parsed.scripts.forEach((pair, pairIdx) => {
+          const scriptNum = input.scriptNumberStart + pairIdx;
+          const effectiveCategory = input.hookCategory ?? pair.hookCategory;
+
+          namedScripts.push({
+            name: buildScriptName(input.lawsuit, effectiveCategory, pair.hookAngle1, scriptNum, input.aggressiveScale),
+            hook: pair.hookLine1,
+            hookAngle: pair.hookAngle1,
+            body: pair.body,
+            cta: pair.cta,
+            pairIndex: pairIdx,
+            variantIndex: 0,
+          });
+
+          namedScripts.push({
+            name: buildScriptName(input.lawsuit, effectiveCategory, pair.hookAngle2, scriptNum, input.aggressiveScale),
+            hook: pair.hookLine2,
+            hookAngle: pair.hookAngle2,
+            body: pair.body,
+            cta: pair.cta,
+            pairIndex: pairIdx,
+            variantIndex: 1,
+          });
+        });
 
         // Save to DB — capture insertId to return as sessionId
         const sessionId = await saveGeneratedScripts({
@@ -297,8 +342,7 @@ Example format:
     push: protectedProcedure
       .input(z.object({
         scriptName: z.string(),
-        hookA: z.string(),
-        hookB: z.string(),
+        hook: z.string(),
         body: z.string(),
         cta: z.string(),
         pageId: z.string().optional(),
@@ -310,7 +354,7 @@ Example format:
         const targetPageId = input.pageId ?? process.env.NOTION_DEFAULT_PAGE_ID;
         if (!targetPageId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "No Notion page ID provided" });
 
-        const scriptBody = `HOOK A\n${input.hookA}\n\nHOOK B\n${input.hookB}\n\nBODY\n${input.body}\n\nCTA\n${input.cta}`;
+        const scriptBody = `HOOK\n${input.hook}\n\nBODY\n${input.body}\n\nCTA\n${input.cta}`;
 
         const response = await fetch(`https://api.notion.com/v1/blocks/${targetPageId}/children`, {
           method: "PATCH",

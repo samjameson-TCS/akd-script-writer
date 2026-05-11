@@ -11,24 +11,32 @@ import { toast } from "sonner";
 import { Wand2, Copy, MessageSquare, ChevronDown, ChevronUp, Loader2, CheckCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 type GeneratedScript = {
   name: string;
-  hookA: string;
-  hookB: string;
+  hook: string;
+  hookAngle: string;
   body: string;
   cta: string;
+  pairIndex: number;
+  variantIndex: number;
 };
+
+// ─── ScriptCard ───────────────────────────────────────────────────────────────
 
 type ScriptCardProps = {
   script: GeneratedScript;
   sessionId: number | null;
   index: number;
+  isPairStart: boolean; // true = first of a pair, show pair divider
 };
 
-function ScriptCard({ script, sessionId, index }: ScriptCardProps) {
+function ScriptCard({ script, sessionId, index, isPairStart }: ScriptCardProps) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const [copied, setCopied] = useState(false);
+
   const saveFeedback = trpc.feedback.save.useMutation({
     onSuccess: () => {
       toast.success("Feedback saved to Knowledge Base");
@@ -38,7 +46,7 @@ function ScriptCard({ script, sessionId, index }: ScriptCardProps) {
     onError: (err) => toast.error(err.message),
   });
 
-  const fullText = `${script.name}\n\nHOOK A\n${script.hookA}\n\nHOOK B\n${script.hookB}\n\nBODY\n${script.body}\n\nCTA\n${script.cta}`;
+  const fullText = `${script.name}\n\nHOOK\n${script.hook}\n\nBODY\n${script.body}\n\nCTA\n${script.cta}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(fullText);
@@ -46,126 +54,139 @@ function ScriptCard({ script, sessionId, index }: ScriptCardProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  return (
-    <Card className="border border-border bg-card relative overflow-hidden">
-      {/* Gold accent top border */}
-      <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent" />
+  // Word count
+  const wordCount = fullText.split(/\s+/).filter(Boolean).length;
 
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <Badge variant="outline" className="text-primary border-primary/30 bg-primary/5 font-mono text-xs mb-2">
-              Script {index + 1}
-            </Badge>
-            <CardTitle className="text-sm font-semibold text-foreground leading-relaxed">
-              {script.name}
-            </CardTitle>
-          </div>
-          <div className="flex gap-1.5 shrink-0">
+  return (
+    <>
+      {isPairStart && index > 0 && (
+        <div className="flex items-center gap-3 py-1">
+          <div className="flex-1 h-px bg-border/30" />
+          <span className="text-xs text-muted-foreground/50 uppercase tracking-widest">Pair {script.pairIndex + 1}</span>
+          <div className="flex-1 h-px bg-border/30" />
+        </div>
+      )}
+      <Card className={`border bg-card relative overflow-hidden ${script.variantIndex === 0 ? "border-primary/20" : "border-border/60"}`}>
+        {/* Gold accent top border on variant A */}
+        {script.variantIndex === 0 && (
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent" />
+        )}
+
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <Badge
+                  variant="outline"
+                  className={`text-xs font-mono ${script.variantIndex === 0 ? "text-primary border-primary/30 bg-primary/5" : "text-muted-foreground border-border/40"}`}
+                >
+                  {script.variantIndex === 0 ? "Hook A" : "Hook B"}
+                </Badge>
+                <Badge variant="outline" className="text-xs text-muted-foreground/60 border-border/30">
+                  {wordCount}w
+                </Badge>
+              </div>
+              <CardTitle className="text-sm font-semibold text-foreground leading-relaxed font-mono">
+                {script.name}
+              </CardTitle>
+            </div>
             <Button
               size="icon"
               variant="ghost"
-              className="h-8 w-8 text-muted-foreground hover:text-primary"
+              className="h-8 w-8 text-muted-foreground hover:text-primary shrink-0"
               onClick={handleCopy}
               title="Copy script"
             >
               {copied ? <CheckCheck className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5" />}
             </Button>
           </div>
-        </div>
-      </CardHeader>
+        </CardHeader>
 
-      <CardContent className="space-y-4">
-        {/* Hook A */}
-        <div className="space-y-1">
-          <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider">Hook A</p>
-          <p className="text-sm text-foreground leading-relaxed">{script.hookA}</p>
-        </div>
+        <CardContent className="space-y-4">
+          {/* Hook */}
+          <div className="space-y-1">
+            <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider">Hook</p>
+            <p className="text-sm text-foreground leading-relaxed">{script.hook}</p>
+          </div>
 
-        {/* Hook B */}
-        <div className="space-y-1">
-          <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider">Hook B</p>
-          <p className="text-sm text-foreground leading-relaxed">{script.hookB}</p>
-        </div>
+          {/* Body */}
+          <div className="space-y-1">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Body</p>
+            <p className="text-sm text-foreground leading-relaxed">{script.body}</p>
+          </div>
 
-        {/* Body */}
-        <div className="space-y-1">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Body</p>
-          <p className="text-sm text-foreground leading-relaxed">{script.body}</p>
-        </div>
+          {/* CTA */}
+          <div className="space-y-1 pb-1">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">CTA</p>
+            <p className="text-sm text-foreground leading-relaxed">{script.cta}</p>
+          </div>
 
-        {/* CTA */}
-        <div className="space-y-1 pb-1">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">CTA</p>
-          <p className="text-sm text-foreground leading-relaxed">{script.cta}</p>
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-2 pt-2 border-t border-border/50">
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 h-8 text-xs gap-1.5 border-border/60 hover:border-primary/50 hover:text-primary"
-            onClick={() => setFeedbackOpen(!feedbackOpen)}
-          >
-            <MessageSquare className="h-3 w-3" />
-            Feedback
-            {feedbackOpen ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
-          </Button>
-
-        </div>
-
-        {/* Feedback panel */}
-        {feedbackOpen && (
-          <div className="space-y-2 pt-1">
-            <Textarea
-              placeholder="What's wrong with this script? What should be improved? This feedback will be stored permanently in the Knowledge Base."
-              value={feedbackText}
-              onChange={(e) => setFeedbackText(e.target.value)}
-              className="min-h-[80px] text-sm bg-muted/30 border-border/60 resize-none"
-            />
+          {/* Actions */}
+          <div className="flex gap-2 pt-2 border-t border-border/50">
             <Button
               size="sm"
-              className="w-full h-8 text-xs"
-              disabled={!feedbackText.trim() || saveFeedback.isPending}
-              onClick={() => {
-                if (!sessionId) return toast.error("No session ID");
-                saveFeedback.mutate({
-                  scriptId: sessionId,
-                  scriptName: script.name,
-                  feedbackText: feedbackText.trim(),
-                });
-              }}
+              variant="outline"
+              className="flex-1 h-8 text-xs gap-1.5 border-border/60 hover:border-primary/50 hover:text-primary"
+              onClick={() => setFeedbackOpen(!feedbackOpen)}
             >
-              {saveFeedback.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save Feedback to KB"}
+              <MessageSquare className="h-3 w-3" />
+              Feedback
+              {feedbackOpen ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
             </Button>
           </div>
-        )}
 
-
-      </CardContent>
-    </Card>
+          {/* Feedback panel */}
+          {feedbackOpen && (
+            <div className="space-y-2 pt-1">
+              <Textarea
+                placeholder="What's wrong with this script? What should be improved? This feedback will be stored permanently in the Knowledge Base."
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+                className="min-h-[80px] text-sm bg-muted/30 border-border/60 resize-none"
+              />
+              <Button
+                size="sm"
+                className="w-full h-8 text-xs"
+                disabled={!feedbackText.trim() || saveFeedback.isPending}
+                onClick={() => {
+                  if (!sessionId) return toast.error("No session ID — please regenerate");
+                  saveFeedback.mutate({
+                    scriptId: sessionId,
+                    scriptName: script.name,
+                    feedbackText: feedbackText.trim(),
+                  });
+                }}
+              >
+                {saveFeedback.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save Feedback to KB"}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
   );
 }
+
+// ─── Main Generate Page ───────────────────────────────────────────────────────
 
 export default function Generate() {
   const [lawsuit, setLawsuit] = useState("");
   const [hookCategories, setHookCategories] = useState<string[]>([]);
-  const [hookAngle, setHookAngle] = useState("");
   const [aggressiveScale, setAggressiveScale] = useState(2);
   const [avatar, setAvatar] = useState("");
   const [platform, setPlatform] = useState<"Meta" | "TikTok" | "YouTube" | "Other">("Other");
   const [referenceScript, setReferenceScript] = useState("");
   const [extraInstructions, setExtraInstructions] = useState("");
   const [scriptNumberStart, setScriptNumberStart] = useState(1);
+  const [pairsCount, setPairsCount] = useState(3);
   const [results, setResults] = useState<{ scripts: GeneratedScript[]; sessionId: number | null } | null>(null);
 
   const { data: meta } = trpc.meta.useQuery();
 
   const generate = trpc.scripts.generate.useMutation({
     onSuccess: (data) => {
-      setResults({ scripts: data.scripts, sessionId: data.sessionId ?? null });
-      toast.success("3 scripts generated");
+      setResults({ scripts: data.scripts as GeneratedScript[], sessionId: data.sessionId ?? null });
+      toast.success(`${data.scripts.length} scripts generated (${pairsCount} pairs)`);
       window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
     },
     onError: (err) => toast.error(err.message),
@@ -176,10 +197,34 @@ export default function Generate() {
       toast.error("Please select a lawsuit and avatar");
       return;
     }
-    generate.mutate({ lawsuit, hookCategory: hookCategories.join(", ") || undefined, hookAngle: hookAngle || undefined, aggressiveScale, avatar, platform, referenceScript: referenceScript || undefined, extraInstructions: extraInstructions || undefined, scriptNumberStart });
+    generate.mutate({
+      lawsuit,
+      hookCategory: hookCategories.join(", ") || undefined,
+      aggressiveScale,
+      avatar,
+      platform,
+      referenceScript: referenceScript || undefined,
+      extraInstructions: extraInstructions || undefined,
+      scriptNumberStart,
+      pairsCount,
+    });
   };
 
   const aggressiveLabels = ["", "1 — Very Safe", "2 — Safe", "3 — Moderate", "4 — Aggressive", "5 — Very Aggressive"];
+
+  // Hook category display labels with emoji
+  const hookCategoryLabels: Record<string, string> = {
+    "Symptom": "🚨 Symptom",
+    "Compensation": "💰 Compensation",
+    "Betrayal": "😤 Betrayal",
+    "Curiosity": "🤔 Curiosity",
+    "Story": "👤 Story",
+    "Pattern": "😂 Pattern",
+    "Urgency": "⏰ Urgency",
+    "Family": "🧒 Family",
+    "Question": "❓ Question",
+    "Authority": "🔍 Authority",
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 py-2">
@@ -189,7 +234,7 @@ export default function Generate() {
           <Wand2 className="h-5 w-5 text-primary" />
           Generate Scripts
         </h1>
-        <p className="text-sm text-muted-foreground">Configure parameters and generate 3 unique ad scripts powered by the AKD Knowledge Base.</p>
+        <p className="text-sm text-muted-foreground">Each generation produces pairs of scripts — same body, two different hooks, each named with its own hook angle.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -227,7 +272,9 @@ export default function Generate() {
                 </SelectTrigger>
                 <SelectContent>
                   {meta?.hookCategories.map(h => (
-                    <SelectItem key={h} value={h} disabled={hookCategories.includes(h)}>{h}</SelectItem>
+                    <SelectItem key={h} value={h} disabled={hookCategories.includes(h)}>
+                      {hookCategoryLabels[h] ?? h}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -235,7 +282,7 @@ export default function Generate() {
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {hookCategories.map(cat => (
                     <span key={cat} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary border border-primary/20">
-                      {cat}
+                      {hookCategoryLabels[cat] ?? cat}
                       <button onClick={() => setHookCategories(prev => prev.filter(c => c !== cat))} className="hover:text-destructive transition-colors">
                         <X className="h-2.5 w-2.5" />
                       </button>
@@ -243,18 +290,6 @@ export default function Generate() {
                   ))}
                 </div>
               )}
-            </div>
-
-            {/* Hook Angle — optional */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Hook Angle <span className="text-muted-foreground">(optional — AI decides if empty)</span></Label>
-              <input
-                type="text"
-                placeholder="e.g. Can't Believe, Break It Down... or leave blank"
-                value={hookAngle}
-                onChange={(e) => setHookAngle(e.target.value)}
-                className="w-full h-9 px-3 text-sm rounded-md border border-border/60 bg-muted/30 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              />
             </div>
 
             {/* Avatar */}
@@ -308,16 +343,29 @@ export default function Generate() {
               </div>
             </div>
 
-            {/* Script Number Start */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Starting Script Number</Label>
-              <input
-                type="number"
-                min={1}
-                value={scriptNumberStart}
-                onChange={(e) => setScriptNumberStart(parseInt(e.target.value) || 1)}
-                className="w-full h-9 px-3 text-sm rounded-md border border-border/60 bg-muted/30 text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              />
+            {/* Pairs Count + Script Number Start — side by side */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-foreground">Pairs to Generate</Label>
+                <input
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={pairsCount}
+                  onChange={(e) => setPairsCount(Math.min(5, Math.max(1, parseInt(e.target.value) || 1)))}
+                  className="w-full h-9 px-3 text-sm rounded-md border border-border/60 bg-muted/30 text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-foreground">Starting Number</Label>
+                <input
+                  type="number"
+                  min={1}
+                  value={scriptNumberStart}
+                  onChange={(e) => setScriptNumberStart(parseInt(e.target.value) || 1)}
+                  className="w-full h-9 px-3 text-sm rounded-md border border-border/60 bg-muted/30 text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
             </div>
 
             {/* Reference Script */}
@@ -355,7 +403,7 @@ export default function Generate() {
               ) : (
                 <>
                   <Wand2 className="h-4 w-4" />
-                  Generate 3 Scripts
+                  Generate {pairsCount} Pair{pairsCount !== 1 ? "s" : ""} ({pairsCount * 2} Scripts)
                 </>
               )}
             </Button>
@@ -363,11 +411,11 @@ export default function Generate() {
         </Card>
 
         {/* Output */}
-        <div className="lg:col-span-3 space-y-4">
+        <div className="lg:col-span-3 space-y-3">
           {generate.isPending && (
             <div className="flex flex-col items-center justify-center h-64 gap-4 text-muted-foreground">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm">Generating scripts with AKD Knowledge Base...</p>
+              <p className="text-sm">Generating script pairs with AKD Knowledge Base...</p>
             </div>
           )}
 
@@ -375,12 +423,31 @@ export default function Generate() {
             <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground border border-dashed border-border/40 rounded-xl">
               <Wand2 className="h-8 w-8 opacity-30" />
               <p className="text-sm">Configure parameters and click Generate</p>
+              <p className="text-xs opacity-60">Each pair = 2 scripts with different hook angles</p>
             </div>
           )}
 
-          {results && results.scripts.map((script, i) => (
-            <ScriptCard key={i} script={script} sessionId={results.sessionId} index={i} />
-          ))}
+          {results && (
+            <>
+              {/* Pair header for first pair */}
+              {results.scripts.length > 0 && (
+                <div className="flex items-center gap-3 pb-1">
+                  <div className="flex-1 h-px bg-border/30" />
+                  <span className="text-xs text-muted-foreground/50 uppercase tracking-widest">Pair 1</span>
+                  <div className="flex-1 h-px bg-border/30" />
+                </div>
+              )}
+              {results.scripts.map((script, i) => (
+                <ScriptCard
+                  key={i}
+                  script={script}
+                  sessionId={results.sessionId}
+                  index={i}
+                  isPairStart={script.variantIndex === 0 && i > 0}
+                />
+              ))}
+            </>
+          )}
         </div>
       </div>
     </div>
