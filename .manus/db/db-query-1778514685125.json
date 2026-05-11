@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `script_comments` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`sessionId` int NOT NULL,\n\t`scriptName` varchar(256) NOT NULL,\n\t`comment` text NOT NULL,\n\t`promoted` int NOT NULL DEFAULT 0,\n\t`kbRule` text,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `script_comments_id` PRIMARY KEY(`id`)\n);\nALTER TABLE `feedback_entries` ADD `scope` enum('session','global') DEFAULT 'session' NOT NULL;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PSucjba86eoTqFC.f7a34347a3f5 --database QnFo973ajezBeVYDwDUoyf --execute CREATE TABLE `script_comments` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`sessionId` int NOT NULL,\n\t`scriptName` varchar(256) NOT NULL,\n\t`comment` text NOT NULL,\n\t`promoted` int NOT NULL DEFAULT 0,\n\t`kbRule` text,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `script_comments_id` PRIMARY KEY(`id`)\n);\nALTER TABLE `feedback_entries` ADD `scope` enum('session','global') DEFAULT 'session' NOT NULL;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2466
+}

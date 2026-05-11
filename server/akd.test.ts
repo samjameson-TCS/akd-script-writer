@@ -82,6 +82,11 @@ vi.mock("./db", () => ({
   saveScriptToDashboard: vi.fn().mockResolvedValue(1),
   listSavedScripts: vi.fn().mockResolvedValue([]),
   deleteSavedScript: vi.fn().mockResolvedValue(undefined),
+  // Script comments (session thread)
+  addScriptComment: vi.fn().mockResolvedValue(99),
+  getScriptCommentsByName: vi.fn().mockResolvedValue([]),
+  promoteScriptComment: vi.fn().mockResolvedValue(undefined),
+  getUnpromotedComments: vi.fn().mockResolvedValue([]),
   // Research docs
   listResearchDocs: vi.fn().mockResolvedValue([
     { id: 1, lawsuitKey: "Hernia Mesh", title: "Hernia Mesh Brief", summary: "Test summary", updatedAt: new Date() },
@@ -719,5 +724,84 @@ describe("Phase 12 — structured feedback categorisation", () => {
     });
     expect(result.success).toBe(true);
     expect(typeof result.kbRule).toBe("string");
+  });
+});
+
+// ─── Phase 13: Session Comment Thread Tests ───────────────────────────────────
+
+describe("Phase 13 — scriptComments session thread", () => {
+  it("scriptComments.add saves a comment and returns an id", async () => {
+    const { addScriptComment } = await import("./db");
+    (addScriptComment as ReturnType<typeof vi.fn>).mockResolvedValueOnce(99);
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.scriptComments.add({
+      sessionId: 42,
+      scriptName: "HM 1 (Curiosity) (hid) (Mo) (2-5)",
+      comment: "Include compensation in the hook",
+    });
+    expect(result.id).toBe(99);
+    expect(result.success).toBe(true);
+  });
+
+  it("scriptComments.list returns all comments for a script", async () => {
+    const { getScriptCommentsByName } = await import("./db");
+    (getScriptCommentsByName as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { id: 99, sessionId: 42, scriptName: "HM 1 (Curiosity) (hid) (Mo) (2-5)", comment: "Include compensation in the hook", promoted: false, createdAt: new Date() },
+      { id: 100, sessionId: 42, scriptName: "HM 1 (Curiosity) (hid) (Mo) (2-5)", comment: "Make the tone more urgent", promoted: false, createdAt: new Date() },
+    ]);
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.scriptComments.list({
+      sessionId: 42,
+      scriptName: "HM 1 (Curiosity) (hid) (Mo) (2-5)",
+    });
+    expect(result.comments).toHaveLength(2);
+    expect(result.comments[0].comment).toBe("Include compensation in the hook");
+    expect(result.comments[1].comment).toBe("Make the tone more urgent");
+  });
+
+  it("scriptComments.promote converts comment to KB rule and marks as promoted", async () => {
+    const { promoteScriptComment } = await import("./db");
+    (promoteScriptComment as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.scriptComments.promote({
+      commentId: 99,
+      comment: "Include compensation in the hook",
+      scriptName: "HM 1 (Curiosity) (hid) (Mo) (2-5)",
+    });
+    expect(result.success).toBe(true);
+    expect(typeof result.kbRule).toBe("string");
+    expect(result.kbRule.length).toBeGreaterThan(0);
+    expect(promoteScriptComment).toHaveBeenCalledWith(99, expect.any(String));
+  });
+
+  it("regenerateOne with _commentThread passes all accumulated notes to the AI", async () => {
+    const { invokeLLM } = await import("./_core/llm");
+    (invokeLLM as ReturnType<typeof vi.fn>).mockClear();
+    const caller = appRouter.createCaller(createAuthContext());
+    await caller.scripts.regenerateOne({
+      lawsuit: "Hernia Mesh",
+      aggressiveScale: 3,
+      avatar: "Patients",
+      platform: "Meta",
+      complianceLevel: 3,
+      scriptNumber: 1,
+      existingScript: {
+        name: "HM 1 (Curiosity) (hid) (Mo) (2-5)",
+        hook: "They hid this from you.",
+        hookAngle: "hid",
+        body: "Internal documents show the manufacturer knew.",
+        cta: "Call now for a free review.",
+        pairIndex: 0,
+        variantIndex: 0,
+      },
+      _commentThread: ["Include compensation in the hook", "Make the tone more urgent"],
+    });
+    expect(invokeLLM).toHaveBeenCalled();
+    const llmCall = (invokeLLM as ReturnType<typeof vi.fn>).mock.calls[0];
+    const messages = (llmCall[0] as { messages: Array<{ role: string; content: string }> }).messages;
+    // Comment thread is injected into the user prompt (not system prompt)
+    const allContent = messages.map(m => m.content).join(" ");
+    expect(allContent).toContain("Include compensation in the hook");
+    expect(allContent).toContain("Make the tone more urgent");
   });
 });

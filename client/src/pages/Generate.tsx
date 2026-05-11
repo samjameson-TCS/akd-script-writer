@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, RefreshCw, BookmarkPlus, BookmarkCheck } from "lucide-react";
+import { X, RefreshCw, BookmarkPlus, BookmarkCheck, ArrowUpCircle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +35,12 @@ type GenerationParams = {
   extraInstructions?: string;
 };
 
+type ThreadComment = {
+  id?: number;
+  text: string;
+  savedAt: string;
+};
+
 // ─── ScriptCard ───────────────────────────────────────────────────────────────
 
 type ScriptCardProps = {
@@ -48,16 +54,25 @@ type ScriptCardProps = {
 
 function ScriptCard({ script, sessionId, index, isPairStart, generationParams, onReplace }: ScriptCardProps) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [feedbackText, setFeedbackText] = useState("");
+  const [newComment, setNewComment] = useState("");
+  // Local comment thread — accumulates all comments for this script in this session
+  // Comments are saved to DB immediately on submit, never lost
+  const [commentThread, setCommentThread] = useState<ThreadComment[]>([]);
   const [copied, setCopied] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const [savedKbRule, setSavedKbRule] = useState<string | null>(null);
   const [savedToDashboard, setSavedToDashboard] = useState(false);
 
   const saveScriptMutation = trpc.savedScripts.save.useMutation({
     onSuccess: () => {
       setSavedToDashboard(true);
       toast.success("Saved to Dashboard", { description: script.name });
+      // If there are unpromoted session comments, suggest promoting them
+      if (commentThread.length > 0) {
+        toast.info("Tip: You can promote your session notes to global KB rules", {
+          description: "Open the feedback panel and click ↑ next to any comment",
+          duration: 6000,
+        });
+      }
     },
     onError: (err) => toast.error(err.message),
   });
@@ -79,14 +94,30 @@ function ScriptCard({ script, sessionId, index, isPairStart, generationParams, o
     });
   };
 
-  const saveFeedback = trpc.feedback.save.useMutation({
+  // Add comment — saves immediately to DB, never lost
+  const addComment = trpc.scriptComments.add.useMutation({
     onSuccess: (data) => {
-      setSavedKbRule(data.kbRule ?? null);
-      toast.success("Feedback saved + KB updated", {
-        description: data.kbRule ? `Rule: "${data.kbRule}"` : undefined,
-        duration: 5000,
+      const saved: ThreadComment = { id: data.id, text: newComment.trim(), savedAt: new Date().toLocaleTimeString() };
+      setCommentThread(prev => [...prev, saved]);
+      setNewComment("");
+      toast.success("Note saved to session thread", {
+        description: "Will be applied on every regeneration of this script",
       });
-      setFeedbackText("");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  // Promote a session comment to a global KB rule
+  const promoteComment = trpc.scriptComments.promote.useMutation({
+    onSuccess: (data, variables) => {
+      // Mark as promoted in local state
+      setCommentThread(prev =>
+        prev.map(c => c.id === variables.commentId ? { ...c, promoted: true } : c)
+      );
+      toast.success("Promoted to global KB rule", {
+        description: `"${data.kbRule}"`,
+        duration: 6000,
+      });
     },
     onError: (err) => toast.error(err.message),
   });
@@ -95,9 +126,11 @@ function ScriptCard({ script, sessionId, index, isPairStart, generationParams, o
     onSuccess: (data) => {
       onReplace(index, data.script as GeneratedScript);
       setIsRegenerating(false);
-      setFeedbackOpen(false);
-      setSavedKbRule(null);
-      toast.success("Script regenerated");
+      toast.success("Script regenerated", {
+        description: commentThread.length > 0
+          ? `Applied ${commentThread.length} session note${commentThread.length > 1 ? "s" : ""}`
+          : "Improved based on your feedback",
+      });
     },
     onError: (err) => {
       setIsRegenerating(false);
@@ -114,20 +147,23 @@ function ScriptCard({ script, sessionId, index, isPairStart, generationParams, o
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSaveFeedback = () => {
+  const handleAddComment = () => {
     if (!sessionId) return toast.error("No session ID — please regenerate the batch first");
-    if (!feedbackText.trim()) return;
-    saveFeedback.mutate({
-      scriptId: sessionId,
+    if (!newComment.trim()) return;
+    addComment.mutate({
+      sessionId,
       scriptName: script.name,
-      feedbackText: feedbackText.trim(),
-      scriptContent: { hook: script.hook, body: script.body, cta: script.cta },
+      comment: newComment.trim(),
     });
   };
 
   const handleRegenerate = () => {
     setIsRegenerating(true);
     const scriptNum = generationParams.scriptNumberStart + script.pairIndex;
+    // Pass the full accumulated comment thread — AI never forgets earlier notes
+    const threadTexts = commentThread.map(c => c.text);
+    // Also include the current unsaved comment if any
+    if (newComment.trim()) threadTexts.push(newComment.trim());
     regenerateOne.mutate({
       lawsuit: generationParams.lawsuit,
       hookCategory: generationParams.hookCategory,
@@ -137,7 +173,8 @@ function ScriptCard({ script, sessionId, index, isPairStart, generationParams, o
       complianceLevel: generationParams.complianceLevel,
       scriptNumber: scriptNum,
       existingScript: script,
-      feedbackText: feedbackText.trim() || undefined,
+      feedbackText: newComment.trim() || undefined,
+      _commentThread: threadTexts.length > 0 ? threadTexts : undefined,
       referenceScript: generationParams.referenceScript,
       extraInstructions: generationParams.extraInstructions,
     });
@@ -163,7 +200,7 @@ function ScriptCard({ script, sessionId, index, isPairStart, generationParams, o
           <div className="absolute inset-0 flex items-center justify-center bg-card/60 z-10 rounded-lg">
             <div className="flex flex-col items-center gap-2 text-primary">
               <Loader2 className="h-6 w-6 animate-spin" />
-              <span className="text-xs font-medium">Regenerating...</span>
+              <span className="text-xs font-medium">Regenerating with all notes...</span>
             </div>
           </div>
         )}
@@ -181,6 +218,11 @@ function ScriptCard({ script, sessionId, index, isPairStart, generationParams, o
                 <Badge variant="outline" className="text-xs text-muted-foreground/60 border-border/30">
                   {wordCount}w
                 </Badge>
+                {commentThread.length > 0 && (
+                  <Badge variant="outline" className="text-xs text-amber-500 border-amber-500/30 bg-amber-500/5">
+                    {commentThread.length} note{commentThread.length > 1 ? "s" : ""}
+                  </Badge>
+                )}
               </div>
               <CardTitle className="text-sm font-semibold text-foreground leading-relaxed font-mono">
                 {script.name}
@@ -244,12 +286,12 @@ function ScriptCard({ script, sessionId, index, isPairStart, generationParams, o
             <Button
               size="sm"
               variant="outline"
-              className="flex-1 h-8 text-xs gap-1.5 border-border/60 hover:border-primary/50 hover:text-primary"
+              className={`flex-1 h-8 text-xs gap-1.5 border-border/60 hover:border-primary/50 hover:text-primary ${commentThread.length > 0 ? "border-amber-500/30 text-amber-500 hover:border-amber-500/60" : ""}`}
               onClick={() => setFeedbackOpen(!feedbackOpen)}
               disabled={isRegenerating}
             >
               <MessageSquare className="h-3 w-3" />
-              Feedback
+              {commentThread.length > 0 ? `Notes (${commentThread.length})` : "Add Note"}
               {feedbackOpen ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
             </Button>
             <Button
@@ -258,61 +300,92 @@ function ScriptCard({ script, sessionId, index, isPairStart, generationParams, o
               className="h-8 text-xs gap-1.5 border-border/60 hover:border-amber-500/50 hover:text-amber-500"
               onClick={handleRegenerate}
               disabled={isRegenerating || regenerateOne.isPending}
-              title="Regenerate this script"
+              title={commentThread.length > 0 ? `Regenerate applying all ${commentThread.length} notes` : "Regenerate this script"}
             >
               <RefreshCw className="h-3 w-3" />
               Redo
             </Button>
           </div>
 
-          {/* Feedback panel */}
+          {/* Feedback / Notes panel */}
           {feedbackOpen && (
-            <div className="space-y-2 pt-1">
-              <Textarea
-                placeholder="What's wrong with this script? Be specific — this will be saved to the Knowledge Base as a permanent rule that affects all future generations."
-                value={feedbackText}
-                onChange={(e) => setFeedbackText(e.target.value)}
-                className="min-h-[80px] text-sm bg-muted/30 border-border/60 resize-none"
-              />
+            <div className="space-y-3 pt-1">
 
-              {/* KB rule preview after save */}
-              {savedKbRule && (
-                <div className="rounded-md bg-primary/5 border border-primary/20 px-3 py-2">
-                  <p className="text-xs text-primary/70 font-semibold uppercase tracking-wider mb-1">KB Rule Added</p>
-                  <p className="text-xs text-foreground italic">"{savedKbRule}"</p>
+              {/* Existing comment thread */}
+              {commentThread.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Session Notes</p>
+                  <div className="space-y-1.5 rounded-md border border-border/40 bg-muted/20 p-2.5">
+                    {commentThread.map((c, i) => (
+                      <div key={i} className="flex items-start gap-2 group">
+                        <span className="text-xs text-muted-foreground/40 font-mono mt-0.5 shrink-0">{i + 1}.</span>
+                        <p className="text-xs text-foreground flex-1 leading-relaxed">{c.text}</p>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                          <span className="text-xs text-muted-foreground/40">{c.savedAt}</span>
+                          {c.id && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-5 w-5 text-muted-foreground/40 hover:text-primary"
+                              title="Promote to global KB rule (applies to all future scripts)"
+                              onClick={() => promoteComment.mutate({ commentId: c.id!, comment: c.text, scriptName: script.name })}
+                              disabled={promoteComment.isPending}
+                            >
+                              <ArrowUpCircle className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground/40">
+                    All notes above will be applied on the next regeneration. Hover a note and click ↑ to promote it to a global KB rule.
+                  </p>
                 </div>
               )}
 
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 h-8 text-xs border-border/60"
-                  disabled={!feedbackText.trim() || saveFeedback.isPending}
-                  onClick={handleSaveFeedback}
-                >
-                  {saveFeedback.isPending ? (
-                    <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Saving to KB...</>
-                  ) : (
-                    "Save to KB"
-                  )}
-                </Button>
-                <Button
-                  size="sm"
-                  className="flex-1 h-8 text-xs gap-1.5"
-                  disabled={isRegenerating || regenerateOne.isPending}
-                  onClick={handleRegenerate}
-                >
-                  {isRegenerating || regenerateOne.isPending ? (
-                    <><Loader2 className="h-3 w-3 animate-spin" /> Regenerating...</>
-                  ) : (
-                    <><RefreshCw className="h-3 w-3" /> Save & Redo</>
-                  )}
-                </Button>
+              {/* New comment input */}
+              <div className="space-y-2">
+                <Textarea
+                  placeholder="Add a note about this script — saved immediately, applied on every regeneration. E.g. 'Include compensation in the hook' or 'Too formal, make it more casual'"
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  className="min-h-[72px] text-sm bg-muted/30 border-border/60 resize-none"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleAddComment();
+                  }}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 h-8 text-xs border-border/60"
+                    disabled={!newComment.trim() || addComment.isPending}
+                    onClick={handleAddComment}
+                  >
+                    {addComment.isPending ? (
+                      <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Saving...</>
+                    ) : (
+                      "Save Note"
+                    )}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1 h-8 text-xs gap-1.5"
+                    disabled={isRegenerating || regenerateOne.isPending}
+                    onClick={handleRegenerate}
+                  >
+                    {isRegenerating || regenerateOne.isPending ? (
+                      <><Loader2 className="h-3 w-3 animate-spin" /> Regenerating...</>
+                    ) : (
+                      <><RefreshCw className="h-3 w-3" /> Redo with All Notes</>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground/40">
+                  "Save Note" stores it in the session thread. "Redo with All Notes" regenerates applying every note in the thread. ⌘+Enter to save.
+                </p>
               </div>
-              <p className="text-xs text-muted-foreground/50">
-                "Save to KB" stores the rule for future generations. "Save & Redo" also regenerates this script now.
-              </p>
             </div>
           )}
         </CardContent>
@@ -336,346 +409,314 @@ export default function Generate() {
   const [pairsCount, setPairsCount] = useState(3);
   const [results, setResults] = useState<{ scripts: GeneratedScript[]; sessionId: number | null } | null>(null);
 
-  const { data: meta } = trpc.meta.useQuery();
-
-  const generate = trpc.scripts.generate.useMutation({
+  const generateMutation = trpc.scripts.generate.useMutation({
     onSuccess: (data) => {
       setResults({ scripts: data.scripts as GeneratedScript[], sessionId: data.sessionId ?? null });
-      toast.success(`${data.scripts.length} scripts generated (${pairsCount} pairs)`);
-      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
     },
     onError: (err) => toast.error(err.message),
   });
 
-  const handleGenerate = () => {
-    if (!lawsuit || !avatar) {
-      toast.error("Please select a lawsuit and avatar");
-      return;
-    }
-    generate.mutate({
-      lawsuit,
-      hookCategory: hookCategories.join(", ") || undefined,
-      aggressiveScale,
-      avatar,
-      platform,
-      complianceLevel,
-      referenceScript: referenceScript || undefined,
-      extraInstructions: extraInstructions || undefined,
-      scriptNumberStart,
-      pairsCount,
-    });
-  };
+  const { data: metaData } = trpc.meta.useQuery();
 
-  // Replace a single script in-place when regenerated
-  const handleReplaceScript = (index: number, newScript: GeneratedScript) => {
-    setResults(prev => {
-      if (!prev) return prev;
-      const updated = [...prev.scripts];
-      updated[index] = newScript;
-      return { ...prev, scripts: updated };
-    });
-  };
+  const researchBackedLawsuits = metaData?.researchBackedLawsuits ?? [];
+  const otherLawsuits = metaData?.otherLawsuits ?? [];
+  const hookCategoryOptions = metaData?.hookCategories ?? [];
+  const avatarOptions = metaData?.avatars ?? [];
 
-  const aggressiveLabels = ["", "1 — Very Safe", "2 — Safe", "3 — Moderate", "4 — Aggressive", "5 — Very Aggressive"];
-
-  const hookCategoryLabels: Record<string, string> = {
-    "Symptom": "🚨 Symptom",
-    "Compensation": "💰 Compensation",
-    "Betrayal": "😤 Betrayal",
-    "Curiosity": "🤔 Curiosity",
-    "Story": "👤 Story",
-    "Pattern": "😂 Pattern",
-    "Urgency": "⏰ Urgency",
-    "Family": "🧒 Family",
-    "Question": "❓ Question",
-    "Authority": "🔍 Authority",
+  const handleReplace = (index: number, newScript: GeneratedScript) => {
+    if (!results) return;
+    const updated = [...results.scripts];
+    updated[index] = newScript;
+    setResults({ ...results, scripts: updated });
   };
 
   // Build generation params object to pass down to each ScriptCard
   const generationParams: GenerationParams = {
     lawsuit,
-    hookCategory: hookCategories.join(", ") || undefined,
+    hookCategory: hookCategories.length === 1 ? hookCategories[0] : undefined,
     aggressiveScale,
     avatar,
     platform,
     complianceLevel,
     scriptNumberStart,
-    referenceScript: referenceScript || undefined,
-    extraInstructions: extraInstructions || undefined,
+    referenceScript: referenceScript.trim() || undefined,
+    extraInstructions: extraInstructions.trim() || undefined,
+  };
+
+  const handleGenerate = () => {
+    if (!lawsuit) return toast.error("Please select a lawsuit");
+    if (!avatar) return toast.error("Please select an avatar");
+    generateMutation.mutate({
+      lawsuit,
+      hookCategory: hookCategories.length === 1 ? hookCategories[0] : undefined,
+      aggressiveScale,
+      avatar,
+      platform,
+      complianceLevel,
+      pairsCount,
+      scriptNumberStart,
+      referenceScript: referenceScript.trim() || undefined,
+      extraInstructions: extraInstructions.trim() || undefined,
+    });
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 py-2">
+    <div className="max-w-5xl mx-auto space-y-6 p-6">
       {/* Header */}
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
-          <Wand2 className="h-5 w-5 text-primary" />
-          Generate Scripts
-        </h1>
-        <p className="text-sm text-muted-foreground">Each generation produces pairs of scripts — same body, two different hooks, each named with its own hook angle.</p>
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Generate Scripts</h1>
+        <p className="text-sm text-muted-foreground mt-1">Configure your parameters and generate paired scripts</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Form */}
-        <Card className="lg:col-span-2 border-border bg-card">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Parameters</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-5">
+      {/* Form */}
+      <Card className="border border-border/60 bg-card">
+        <CardContent className="pt-6 space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Lawsuit */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Lawsuit *</Label>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lawsuit</Label>
               <Select value={lawsuit} onValueChange={setLawsuit}>
-                <SelectTrigger className="h-9 text-sm bg-muted/30 border-border/60">
+                <SelectTrigger className="h-9 text-sm">
                   <SelectValue placeholder="Select lawsuit..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel className="text-xs text-primary font-semibold uppercase tracking-wider px-2 py-1.5">
-                      📚 Research-Backed
-                    </SelectLabel>
-                    {meta?.researchBackedLawsuits.map(l => (
-                      <SelectItem key={l} value={l}>
-                        <span className="flex items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 rounded-full bg-primary inline-block" />
-                          {l}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                  <SelectSeparator />
-                  <SelectGroup>
-                    <SelectLabel className="text-xs text-muted-foreground font-semibold uppercase tracking-wider px-2 py-1.5">
-                      Other Lawsuits
-                    </SelectLabel>
-                    {meta?.otherLawsuits.map(l => (
-                      <SelectItem key={l} value={l}>{l}</SelectItem>
-                    ))}
-                  </SelectGroup>
+                  {researchBackedLawsuits.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel className="text-xs text-primary/70">Research-Backed</SelectLabel>
+                      {researchBackedLawsuits.map((l: string) => (
+                        <SelectItem key={l} value={l}>
+                          <span className="flex items-center gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-primary inline-block" />
+                            {l}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
+                  {otherLawsuits.length > 0 && (
+                    <>
+                      <SelectSeparator />
+                      <SelectGroup>
+                        <SelectLabel className="text-xs text-muted-foreground">Other Lawsuits</SelectLabel>
+                        {otherLawsuits.map((l: string) => (
+                          <SelectItem key={l} value={l}>{l}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
-            </div>
-
-            {/* Hook Category — optional multi-select */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Hook Category <span className="text-muted-foreground">(optional — AI decides if empty)</span></Label>
-              <Select
-                onValueChange={(val) => {
-                  if (!hookCategories.includes(val)) {
-                    setHookCategories(prev => [...prev, val]);
-                  }
-                }}
-              >
-                <SelectTrigger className="h-9 text-sm bg-muted/30 border-border/60">
-                  <SelectValue placeholder="Add hook category..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {meta?.hookCategories.map(h => (
-                    <SelectItem key={h} value={h} disabled={hookCategories.includes(h)}>
-                      {hookCategoryLabels[h] ?? h}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {hookCategories.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {hookCategories.map(cat => (
-                    <span key={cat} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary border border-primary/20">
-                      {hookCategoryLabels[cat] ?? cat}
-                      <button onClick={() => setHookCategories(prev => prev.filter(c => c !== cat))} className="hover:text-destructive transition-colors">
-                        <X className="h-2.5 w-2.5" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* Avatar */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Target Avatar *</Label>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Avatar</Label>
               <Select value={avatar} onValueChange={setAvatar}>
-                <SelectTrigger className="h-9 text-sm bg-muted/30 border-border/60">
+                <SelectTrigger className="h-9 text-sm">
                   <SelectValue placeholder="Select avatar..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {meta?.avatars.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                  {avatarOptions.map((a: string) => (
+                    <SelectItem key={a} value={a}>{a}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             {/* Platform */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Platform <span className="text-muted-foreground">(affects word count)</span></Label>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Platform</Label>
               <Select value={platform} onValueChange={(v) => setPlatform(v as typeof platform)}>
-                <SelectTrigger className="h-9 text-sm bg-muted/30 border-border/60">
+                <SelectTrigger className="h-9 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Meta">Meta (Facebook / Instagram) — 75–100 words</SelectItem>
-                  <SelectItem value="TikTok">TikTok — 100–150 words</SelectItem>
-                  <SelectItem value="YouTube">YouTube Shorts — 100–150 words</SelectItem>
-                  <SelectItem value="Other">Other / Unspecified — 100–150 words</SelectItem>
+                  {["Meta", "TikTok", "YouTube", "Other"].map((p) => (
+                    <SelectItem key={p} value={p}>{p}{p === "Meta" ? " (75-100 words)" : ""}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             {/* Compliance Level */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Compliance Level *</Label>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Compliance Level</Label>
               <Select value={String(complianceLevel)} onValueChange={(v) => setComplianceLevel(Number(v) as 1 | 2 | 3)}>
-                <SelectTrigger className="h-9 text-sm bg-muted/30 border-border/60">
+                <SelectTrigger className="h-9 text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">
-                    <span className="font-medium">Level 1</span> — Broughton Partners (Very Strict)
-                  </SelectItem>
-                  <SelectItem value="2">
-                    <span className="font-medium">Level 2</span> — Pulaski / Aggregators + Disclaimer
-                  </SelectItem>
-                  <SelectItem value="3">
-                    <span className="font-medium">Level 3</span> — LCA / Aggregators (More Freedom)
-                  </SelectItem>
+                  {[
+                    { level: 1, label: "Level 1 — Broughton Partners" },
+                    { level: 2, label: "Level 2 — Pulaski / Aggregators" },
+                    { level: 3, label: "Level 3 — LCA / Aggregators" },
+                  ].map((cl) => (
+                    <SelectItem key={cl.level} value={String(cl.level)}>
+                      {cl.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground/70">
-                {complianceLevel === 1 && "Very strict. No guarantees, no financial amounts, no accusatory language."}
-                {complianceLevel === 2 && "Moderate. No direct promises, no POV talking, no inmate solicitation."}
-                {complianceLevel === 3 && "Most freedom. Bold, direct, emotionally charged. Full aggressive scale allowed."}
-              </p>
             </div>
+          </div>
 
-            {/* Aggressive Scale */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-medium text-foreground">Aggressive Scale</Label>
-                <Badge variant="outline" className="text-primary border-primary/30 bg-primary/5 text-xs font-mono">
-                  {aggressiveLabels[aggressiveScale]}
-                </Badge>
-              </div>
-              <Slider
-                value={[aggressiveScale]}
-                onValueChange={([v]) => setAggressiveScale(v)}
-                min={1}
-                max={5}
-                step={1}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>1 Safe</span>
-                <span>5 Aggressive</span>
-              </div>
+          {/* Hook Categories */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Hook Category <span className="text-muted-foreground/50 normal-case font-normal">(optional — AI picks if none selected)</span>
+            </Label>
+            <div className="flex flex-wrap gap-2">
+                  {(hookCategoryOptions as string[]).map((cat) => {
+                const isSelected = hookCategories.includes(cat);
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => {
+                      setHookCategories(prev =>
+                        isSelected ? prev.filter(k => k !== cat) : [...prev, cat]
+                      );
+                    }}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      isSelected
+                        ? "bg-primary/10 border-primary/40 text-primary"
+                        : "bg-muted/30 border-border/40 text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
             </div>
+          </div>
 
-            {/* Pairs Count + Script Number Start — side by side */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-foreground">Pairs to Generate</Label>
-                <input
-                  type="number"
-                  min={1}
-                  max={5}
-                  value={pairsCount}
-                  onChange={(e) => setPairsCount(Math.min(5, Math.max(1, parseInt(e.target.value) || 1)))}
-                  className="w-full h-9 px-3 text-sm rounded-md border border-border/60 bg-muted/30 text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-foreground">Starting Number</Label>
-                <input
-                  type="number"
-                  min={1}
-                  value={scriptNumberStart}
-                  onChange={(e) => setScriptNumberStart(parseInt(e.target.value) || 1)}
-                  className="w-full h-9 px-3 text-sm rounded-md border border-border/60 bg-muted/30 text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-              </div>
+          {/* Aggressive Scale */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Aggressive Scale</Label>
+              <span className="text-sm font-bold text-primary">{aggressiveScale}/5</span>
             </div>
-
-            {/* Reference Script */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Reference Script <span className="text-muted-foreground">(optional)</span></Label>
-              <Textarea
-                placeholder="Paste a winning script to iterate from..."
-                value={referenceScript}
-                onChange={(e) => setReferenceScript(e.target.value)}
-                className="min-h-[100px] text-sm bg-muted/30 border-border/60 resize-none"
-              />
+            <Slider
+              min={1}
+              max={5}
+              step={1}
+              value={[aggressiveScale]}
+              onValueChange={([v]) => setAggressiveScale(v)}
+              className="w-full"
+            />
+            <div className="flex justify-between text-xs text-muted-foreground/50">
+              <span>1 — Gentle</span>
+              <span>3 — Balanced</span>
+              <span>5 — Aggressive</span>
             </div>
+          </div>
 
-            {/* Extra Instructions */}
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Extra Instructions <span className="text-muted-foreground">(optional)</span></Label>
-              <Textarea
-                placeholder="Any specific direction for this batch..."
-                value={extraInstructions}
-                onChange={(e) => setExtraInstructions(e.target.value)}
-                className="min-h-[80px] text-sm bg-muted/30 border-border/60 resize-none"
-              />
+          {/* Pairs Count + Script Number Start */}
+          <div className="grid grid-cols-2 gap-5">
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pairs to Generate</Label>
+              <Select value={String(pairsCount)} onValueChange={(v) => setPairsCount(Number(v))}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <SelectItem key={n} value={String(n)}>{n} pair{n > 1 ? "s" : ""} ({n * 2} scripts)</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Script Number Start</Label>
+              <Select value={String(scriptNumberStart)} onValueChange={(v) => setScriptNumberStart(Number(v))}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 20 }, (_, i) => i + 1).map(n => (
+                    <SelectItem key={n} value={String(n)}>HM {n}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
+          {/* Reference Script */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Reference Script <span className="text-muted-foreground/50 normal-case font-normal">(optional)</span>
+            </Label>
+            <Textarea
+              placeholder="Paste a reference script here to guide the style and structure..."
+              value={referenceScript}
+              onChange={(e) => setReferenceScript(e.target.value)}
+              className="min-h-[80px] text-sm bg-muted/30 border-border/60 resize-none"
+            />
+          </div>
+
+          {/* Extra Instructions */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Extra Instructions <span className="text-muted-foreground/50 normal-case font-normal">(optional)</span>
+            </Label>
+            <Textarea
+              placeholder="Any specific instructions for this batch — e.g. 'Focus on the settlement amount' or 'Use the recent study about meningioma'"
+              value={extraInstructions}
+              onChange={(e) => setExtraInstructions(e.target.value)}
+              className="min-h-[72px] text-sm bg-muted/30 border-border/60 resize-none"
+            />
+          </div>
+
+          {/* Generate Button */}
+          <Button
+            className="w-full h-10 text-sm font-semibold gap-2"
+            onClick={handleGenerate}
+            disabled={generateMutation.isPending || !lawsuit || !avatar}
+          >
+            {generateMutation.isPending ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Generating {pairsCount * 2} scripts...</>
+            ) : (
+              <><Wand2 className="h-4 w-4" /> Generate {pairsCount * 2} Scripts</>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Results */}
+      {results && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">{results.scripts.length} Scripts Generated</h2>
+              {results.sessionId && (
+                <p className="text-xs text-muted-foreground/50 font-mono">Session #{results.sessionId}</p>
+              )}
+            </div>
             <Button
-              className="w-full gap-2"
-              onClick={handleGenerate}
-              disabled={generate.isPending}
+              size="sm"
+              variant="ghost"
+              className="h-8 text-xs text-muted-foreground hover:text-foreground gap-1.5"
+              onClick={() => setResults(null)}
             >
-              {generate.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Wand2 className="h-4 w-4" />
-                  Generate {pairsCount} Pair{pairsCount !== 1 ? "s" : ""} ({pairsCount * 2} Scripts)
-                </>
-              )}
+              <X className="h-3 w-3" /> Clear
             </Button>
-          </CardContent>
-        </Card>
+          </div>
 
-        {/* Output */}
-        <div className="lg:col-span-3 space-y-3">
-          {generate.isPending && (
-            <div className="flex flex-col items-center justify-center h-64 gap-4 text-muted-foreground">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm">Generating script pairs with AKD Knowledge Base...</p>
-            </div>
-          )}
-
-          {!generate.isPending && !results && (
-            <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground border border-dashed border-border/40 rounded-xl">
-              <Wand2 className="h-8 w-8 opacity-30" />
-              <p className="text-sm">Configure parameters and click Generate</p>
-              <p className="text-xs opacity-60">Each pair = 2 scripts with different hook angles</p>
-            </div>
-          )}
-
-          {results && (
-            <>
-              {results.scripts.length > 0 && (
-                <div className="flex items-center gap-3 pb-1">
-                  <div className="flex-1 h-px bg-border/30" />
-                  <span className="text-xs text-muted-foreground/50 uppercase tracking-widest">Pair 1</span>
-                  <div className="flex-1 h-px bg-border/30" />
-                </div>
-              )}
-              {results.scripts.map((script, i) => (
-                <ScriptCard
-                  key={`${i}-${script.name}`}
-                  script={script}
-                  sessionId={results.sessionId}
-                  index={i}
-                  isPairStart={script.variantIndex === 0 && i > 0}
-                  generationParams={generationParams}
-                  onReplace={handleReplaceScript}
-                />
-              ))}
-            </>
-          )}
+          <div className="space-y-3">
+            {results.scripts.map((script, i) => (
+              <ScriptCard
+                key={`${script.name}-${i}`}
+                script={script}
+                sessionId={results.sessionId}
+                index={i}
+                isPairStart={script.variantIndex === 0}
+                generationParams={generationParams}
+                onReplace={handleReplace}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

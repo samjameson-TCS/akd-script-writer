@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { z } from "zod";
-import { saveGeneratedScripts, getScriptHistory, getScriptById, saveFeedback, getFeedbackForScript, saveKbDocument, getKbDocuments, listResearchDocs, getResearchDocByKey, getResearchDocById, saveLawsuitUpdates, getLawsuitUpdates, getLastScrapeTime, saveScriptToDashboard, listSavedScripts, deleteSavedScript } from "./db";
+import { saveGeneratedScripts, getScriptHistory, getScriptById, saveFeedback, getFeedbackForScript, saveKbDocument, getKbDocuments, listResearchDocs, getResearchDocByKey, getResearchDocById, saveLawsuitUpdates, getLawsuitUpdates, getLastScrapeTime, saveScriptToDashboard, listSavedScripts, deleteSavedScript, addScriptComment, getScriptCommentsByName, promoteScriptComment, getUnpromotedComments } from "./db";
 import { scrapeAllLawsuits, scrapeUpdatesForLawsuit } from "./lawsuitScraper";
 import fs from "fs";
 import path from "path";
@@ -436,6 +436,10 @@ Return a JSON array of exactly ${input.pairsCount} pair objects.`;
         }),
         // Feedback that triggered the regeneration
         feedbackText: z.string().optional(),
+        // Session ID to load the full comment thread
+        sessionId: z.number().optional(),
+        // Pre-loaded comment thread (passed from frontend)
+        _commentThread: z.array(z.string()).optional(),
         // Original generation context (for prompt fidelity)
         referenceScript: z.string().optional(),
         extraInstructions: z.string().optional(),
@@ -508,7 +512,14 @@ CTA: ${input.existingScript.cta}
 
 ${input.referenceScript ? `Original reference script:\n${input.referenceScript}\n` : ""}
 ${input.extraInstructions ? `Extra instructions: ${input.extraInstructions}\n` : ""}
-${input.feedbackText ? `Feedback to address: ${input.feedbackText}\n\nAddress this feedback specifically while keeping the same hook category and overall structure.` : "Improve this script while keeping the same hook category and overall structure."}
+${(() => {
+  // Build the full comment thread for this script
+  return input._commentThread && input._commentThread.length > 0
+    ? `ITERATION NOTES (ALL COMMENTS ON THIS SCRIPT — APPLY ALL OF THEM):\n${input._commentThread.map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}\n\nAddress ALL of the above notes. They accumulate — do not ignore earlier ones.`
+    : input.feedbackText
+    ? `Feedback to address: ${input.feedbackText}\n\nAddress this feedback specifically while keeping the same hook category and overall structure.`
+    : "Improve this script while keeping the same hook category and overall structure.";
+})()}
 
 Return a single script object with: hookCategory, hookAngle (most impactful word/phrase, 1-3 words lowercase), hookLine, body, cta.`;
 
@@ -780,6 +791,68 @@ Return a single script object with: hookCategory, hookAngle (most impactful word
       .mutation(async ({ input }) => {
         await deleteSavedScript(input.id);
         return { success: true };
+      }),
+  }),
+
+  // ─── Script Comment Thread ─────────────────────────────────────────────────
+  scriptComments: router({
+    // Add a comment to a script's thread (always saved immediately, never lost)
+    add: protectedProcedure
+      .input(z.object({
+        sessionId: z.number(),
+        scriptName: z.string(),
+        comment: z.string().min(1),
+      }))
+      .mutation(async ({ input }) => {
+        const id = await addScriptComment({
+          sessionId: input.sessionId,
+          scriptName: input.scriptName,
+          comment: input.comment,
+        });
+        return { id, success: true };
+      }),
+
+    // Get all comments for a specific script in a session
+    list: protectedProcedure
+      .input(z.object({
+        sessionId: z.number(),
+        scriptName: z.string(),
+      }))
+      .query(async ({ input }) => {
+        const comments = await getScriptCommentsByName(input.sessionId, input.scriptName);
+        return { comments };
+      }),
+
+    // Promote a session comment to a global KB rule
+    promote: protectedProcedure
+      .input(z.object({
+        commentId: z.number(),
+        comment: z.string(),
+        scriptName: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        // Use AI to convert the raw comment into a structured KB rule
+        const structured = await convertFeedbackToStructuredRule({
+          scriptName: input.scriptName,
+          feedback: input.comment,
+          existingRules: getFeedbackRulesList().map(r => r.rule).join("\n"),
+        });
+        // Append to KB
+        appendStructuredFeedbackRule(structured);
+        // Mark as promoted in DB
+        await promoteScriptComment(input.commentId, structured.rule);
+        return { success: true, kbRule: structured.rule };
+      }),
+
+    // Get all unpromoted comments for a script (for the promote-to-global dialog)
+    unpromoted: protectedProcedure
+      .input(z.object({
+        sessionId: z.number(),
+        scriptName: z.string(),
+      }))
+      .query(async ({ input }) => {
+        const comments = await getUnpromotedComments(input.sessionId, input.scriptName);
+        return { comments };
       }),
   }),
 

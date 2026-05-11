@@ -97,3 +97,17 @@
 - [x] Inject 2-3 few-shot examples from saved Dashboard scripts (same lawsuit) into system prompt
 - [x] Upgrade feedback.save: AI categorises feedback into correct section (tone/hook/body/cta/structure/compliance/general), updates/replaces existing rule instead of appending raw text
 - [x] Update tests for upgraded feedback and generate procedures — 28/28 passing
+
+## Phase 13: Session Comment Accumulation + Global Promotion
+
+- [ ] DB schema: add `scope` column to feedback_entries (enum: 'session' | 'global', default 'session')
+- [ ] DB schema: add `script_comments` table (id, sessionId, scriptName, comment, createdAt) for per-script thread
+- [ ] tRPC: scriptComments.add — append a comment to a script's thread (stored by sessionId + scriptName)
+- [ ] tRPC: scriptComments.list — get all comments for a script (by sessionId + scriptName)
+- [ ] tRPC: scriptComments.promoteToGlobal — convert a session comment into a global KB rule
+- [ ] Backend: regenerateOne injects the full comment thread for that script into the system prompt (not just the latest comment)
+- [ ] Frontend: script cards show a scrollable comment thread (all past comments on that script)
+- [ ] Frontend: new comment input appends to the thread (no delete needed), thread is always visible
+- [ ] Frontend: Regenerate button uses the full thread automatically
+- [ ] Frontend: Dashboard save dialog shows "Promote to global KB?" checklist for session comments
+- [ ] Update tests for new procedures

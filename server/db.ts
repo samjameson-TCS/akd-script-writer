@@ -1,6 +1,6 @@
 import { desc, eq, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, generatedScripts, feedbackEntries, kbDocuments, researchDocs, lawsuitUpdates, savedScripts, InsertGeneratedScript, InsertFeedbackEntry, InsertKbDocument, InsertSavedScript } from "../drizzle/schema";
+import { InsertUser, users, generatedScripts, feedbackEntries, kbDocuments, researchDocs, lawsuitUpdates, savedScripts, scriptComments, InsertGeneratedScript, InsertFeedbackEntry, InsertKbDocument, InsertSavedScript, InsertScriptComment } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -213,4 +213,54 @@ export async function isSavedScript(sessionId: number, scriptName: string): Prom
     .where(eq(savedScripts.name, scriptName))
     .limit(1);
   return result.length > 0;
+}
+
+// ─── Script Comment Thread Helpers ───────────────────────────────────────────
+
+export async function addScriptComment(data: InsertScriptComment): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const { sql: sqlCore } = await import("drizzle-orm");
+  const result = await db.execute(
+    sqlCore`INSERT INTO script_comments (sessionId, scriptName, comment) VALUES (${data.sessionId}, ${data.scriptName}, ${data.comment})`
+  ) as unknown as [{ insertId: number }, unknown];
+  return result[0]?.insertId ?? 0;
+}
+
+export async function getScriptComments(sessionId: number, scriptName: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(scriptComments)
+    .where(eq(scriptComments.sessionId, sessionId))
+    .orderBy(scriptComments.createdAt);
+}
+
+export async function getScriptCommentsByName(sessionId: number, scriptName: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const { and } = await import("drizzle-orm");
+  return db.select().from(scriptComments)
+    .where(and(eq(scriptComments.sessionId, sessionId), eq(scriptComments.scriptName, scriptName)))
+    .orderBy(scriptComments.createdAt);
+}
+
+export async function promoteScriptComment(commentId: number, kbRule: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(scriptComments)
+    .set({ promoted: 1, kbRule })
+    .where(eq(scriptComments.id, commentId));
+}
+
+export async function getUnpromotedComments(sessionId: number, scriptName: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const { and } = await import("drizzle-orm");
+  return db.select().from(scriptComments)
+    .where(and(
+      eq(scriptComments.sessionId, sessionId),
+      eq(scriptComments.scriptName, scriptName),
+      eq(scriptComments.promoted, 0)
+    ))
+    .orderBy(scriptComments.createdAt);
 }

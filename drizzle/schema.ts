@@ -35,6 +35,7 @@ export const feedbackEntries = mysqlTable("feedback_entries", {
   scriptId: int("scriptId").notNull(),
   scriptName: varchar("scriptName", { length: 128 }).notNull(),
   feedbackText: text("feedbackText").notNull(),
+  scope: mysqlEnum("scope", ["session", "global"]).default("session").notNull(), // session = local to this script iteration; global = promoted to KB
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -95,3 +96,17 @@ export const savedScripts = mysqlTable("saved_scripts", {
 
 export type SavedScript = typeof savedScripts.$inferSelect;
 export type InsertSavedScript = typeof savedScripts.$inferInsert;
+
+// Per-script comment thread — accumulates all feedback comments during iteration
+export const scriptComments = mysqlTable("script_comments", {
+  id: int("id").autoincrement().primaryKey(),
+  sessionId: int("sessionId").notNull(),          // FK to generated_scripts.id
+  scriptName: varchar("scriptName", { length: 256 }).notNull(), // exact script name e.g. "HM 2 (Curiosity) (hid) (Mo) (2-5)"
+  comment: text("comment").notNull(),              // raw user comment
+  promoted: int("promoted").default(0).notNull(),  // 0 = session-only, 1 = promoted to global KB
+  kbRule: text("kbRule"),                          // the derived KB rule if promoted
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ScriptComment = typeof scriptComments.$inferSelect;
+export type InsertScriptComment = typeof scriptComments.$inferInsert;
