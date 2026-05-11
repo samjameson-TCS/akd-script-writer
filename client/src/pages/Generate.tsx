@@ -1,0 +1,350 @@
+import { useState } from "react";
+import { trpc } from "@/lib/trpc";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Slider } from "@/components/ui/slider";
+import { toast } from "sonner";
+import { Wand2, Copy, MessageSquare, ChevronDown, ChevronUp, Loader2, CheckCheck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+
+type GeneratedScript = {
+  name: string;
+  hookA: string;
+  hookB: string;
+  body: string;
+  cta: string;
+};
+
+type ScriptCardProps = {
+  script: GeneratedScript;
+  sessionId: number | null;
+  index: number;
+};
+
+function ScriptCard({ script, sessionId, index }: ScriptCardProps) {
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [copied, setCopied] = useState(false);
+  const saveFeedback = trpc.feedback.save.useMutation({
+    onSuccess: () => {
+      toast.success("Feedback saved to Knowledge Base");
+      setFeedbackText("");
+      setFeedbackOpen(false);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const fullText = `${script.name}\n\nHOOK A\n${script.hookA}\n\nHOOK B\n${script.hookB}\n\nBODY\n${script.body}\n\nCTA\n${script.cta}`;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(fullText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Card className="border border-border bg-card relative overflow-hidden">
+      {/* Gold accent top border */}
+      <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent" />
+
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <Badge variant="outline" className="text-primary border-primary/30 bg-primary/5 font-mono text-xs mb-2">
+              Script {index + 1}
+            </Badge>
+            <CardTitle className="text-sm font-semibold text-foreground leading-relaxed">
+              {script.name}
+            </CardTitle>
+          </div>
+          <div className="flex gap-1.5 shrink-0">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-muted-foreground hover:text-primary"
+              onClick={handleCopy}
+              title="Copy script"
+            >
+              {copied ? <CheckCheck className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5" />}
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {/* Hook A */}
+        <div className="space-y-1">
+          <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider">Hook A</p>
+          <p className="text-sm text-foreground leading-relaxed">{script.hookA}</p>
+        </div>
+
+        {/* Hook B */}
+        <div className="space-y-1">
+          <p className="text-xs font-semibold text-primary/70 uppercase tracking-wider">Hook B</p>
+          <p className="text-sm text-foreground leading-relaxed">{script.hookB}</p>
+        </div>
+
+        {/* Body */}
+        <div className="space-y-1">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Body</p>
+          <p className="text-sm text-foreground leading-relaxed">{script.body}</p>
+        </div>
+
+        {/* CTA */}
+        <div className="space-y-1 pb-1">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">CTA</p>
+          <p className="text-sm text-foreground leading-relaxed">{script.cta}</p>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 pt-2 border-t border-border/50">
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 h-8 text-xs gap-1.5 border-border/60 hover:border-primary/50 hover:text-primary"
+            onClick={() => setFeedbackOpen(!feedbackOpen)}
+          >
+            <MessageSquare className="h-3 w-3" />
+            Feedback
+            {feedbackOpen ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+          </Button>
+
+        </div>
+
+        {/* Feedback panel */}
+        {feedbackOpen && (
+          <div className="space-y-2 pt-1">
+            <Textarea
+              placeholder="What's wrong with this script? What should be improved? This feedback will be stored permanently in the Knowledge Base."
+              value={feedbackText}
+              onChange={(e) => setFeedbackText(e.target.value)}
+              className="min-h-[80px] text-sm bg-muted/30 border-border/60 resize-none"
+            />
+            <Button
+              size="sm"
+              className="w-full h-8 text-xs"
+              disabled={!feedbackText.trim() || saveFeedback.isPending}
+              onClick={() => {
+                if (!sessionId) return toast.error("No session ID");
+                saveFeedback.mutate({
+                  scriptId: sessionId,
+                  scriptName: script.name,
+                  feedbackText: feedbackText.trim(),
+                });
+              }}
+            >
+              {saveFeedback.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save Feedback to KB"}
+            </Button>
+          </div>
+        )}
+
+
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function Generate() {
+  const [lawsuit, setLawsuit] = useState("");
+  const [hookCategory, setHookCategory] = useState("");
+  const [hookAngle, setHookAngle] = useState("");
+  const [aggressiveScale, setAggressiveScale] = useState(2);
+  const [avatar, setAvatar] = useState("");
+  const [referenceScript, setReferenceScript] = useState("");
+  const [extraInstructions, setExtraInstructions] = useState("");
+  const [scriptNumberStart, setScriptNumberStart] = useState(1);
+  const [results, setResults] = useState<{ scripts: GeneratedScript[]; sessionId: number | null } | null>(null);
+
+  const { data: meta } = trpc.meta.useQuery();
+
+  const generate = trpc.scripts.generate.useMutation({
+    onSuccess: (data) => {
+      setResults({ scripts: data.scripts, sessionId: null });
+      toast.success("3 scripts generated");
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const handleGenerate = () => {
+    if (!lawsuit || !hookCategory || !hookAngle || !avatar) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    generate.mutate({ lawsuit, hookCategory, hookAngle, aggressiveScale, avatar, referenceScript: referenceScript || undefined, extraInstructions: extraInstructions || undefined, scriptNumberStart });
+  };
+
+  const aggressiveLabels = ["", "1 — Very Safe", "2 — Safe", "3 — Moderate", "4 — Aggressive", "5 — Very Aggressive"];
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-8 py-2">
+      {/* Header */}
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground flex items-center gap-2">
+          <Wand2 className="h-5 w-5 text-primary" />
+          Generate Scripts
+        </h1>
+        <p className="text-sm text-muted-foreground">Configure parameters and generate 3 unique ad scripts powered by the AKD Knowledge Base.</p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* Form */}
+        <Card className="lg:col-span-2 border-border bg-card">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Parameters</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {/* Lawsuit */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-foreground">Lawsuit *</Label>
+              <Select value={lawsuit} onValueChange={setLawsuit}>
+                <SelectTrigger className="h-9 text-sm bg-muted/30 border-border/60">
+                  <SelectValue placeholder="Select lawsuit..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {meta?.lawsuits.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Hook Category */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-foreground">Hook Category *</Label>
+              <Select value={hookCategory} onValueChange={setHookCategory}>
+                <SelectTrigger className="h-9 text-sm bg-muted/30 border-border/60">
+                  <SelectValue placeholder="Select hook category..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {meta?.hookCategories.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Hook Angle */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-foreground">Hook Angle *</Label>
+              <input
+                type="text"
+                placeholder="e.g. Can't Believe, Break It Down..."
+                value={hookAngle}
+                onChange={(e) => setHookAngle(e.target.value)}
+                className="w-full h-9 px-3 text-sm rounded-md border border-border/60 bg-muted/30 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+
+            {/* Avatar */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-foreground">Target Avatar *</Label>
+              <Select value={avatar} onValueChange={setAvatar}>
+                <SelectTrigger className="h-9 text-sm bg-muted/30 border-border/60">
+                  <SelectValue placeholder="Select avatar..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {meta?.avatars.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Aggressive Scale */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-medium text-foreground">Aggressive Scale</Label>
+                <Badge variant="outline" className="text-primary border-primary/30 bg-primary/5 text-xs font-mono">
+                  {aggressiveLabels[aggressiveScale]}
+                </Badge>
+              </div>
+              <Slider
+                value={[aggressiveScale]}
+                onValueChange={([v]) => setAggressiveScale(v)}
+                min={1}
+                max={5}
+                step={1}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>1 Safe</span>
+                <span>5 Aggressive</span>
+              </div>
+            </div>
+
+            {/* Script Number Start */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-foreground">Starting Script Number</Label>
+              <input
+                type="number"
+                min={1}
+                value={scriptNumberStart}
+                onChange={(e) => setScriptNumberStart(parseInt(e.target.value) || 1)}
+                className="w-full h-9 px-3 text-sm rounded-md border border-border/60 bg-muted/30 text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+
+            {/* Reference Script */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-foreground">Reference Script <span className="text-muted-foreground">(optional)</span></Label>
+              <Textarea
+                placeholder="Paste a winning script to iterate from..."
+                value={referenceScript}
+                onChange={(e) => setReferenceScript(e.target.value)}
+                className="min-h-[100px] text-sm bg-muted/30 border-border/60 resize-none"
+              />
+            </div>
+
+            {/* Extra Instructions */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-foreground">Extra Instructions <span className="text-muted-foreground">(optional)</span></Label>
+              <Textarea
+                placeholder="Any additional context or constraints for this generation..."
+                value={extraInstructions}
+                onChange={(e) => setExtraInstructions(e.target.value)}
+                className="min-h-[80px] text-sm bg-muted/30 border-border/60 resize-none"
+              />
+            </div>
+
+            <Button
+              className="w-full gap-2 font-medium"
+              onClick={handleGenerate}
+              disabled={generate.isPending}
+            >
+              {generate.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="h-4 w-4" />
+                  Generate 3 Scripts
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Output */}
+        <div className="lg:col-span-3 space-y-4">
+          {generate.isPending && (
+            <div className="flex flex-col items-center justify-center h-64 gap-4 text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm">Generating scripts with AKD Knowledge Base...</p>
+            </div>
+          )}
+
+          {!generate.isPending && !results && (
+            <div className="flex flex-col items-center justify-center h-64 gap-3 text-muted-foreground border border-dashed border-border/40 rounded-xl">
+              <Wand2 className="h-8 w-8 opacity-30" />
+              <p className="text-sm">Configure parameters and click Generate</p>
+            </div>
+          )}
+
+          {results && results.scripts.map((script, i) => (
+            <ScriptCard key={i} script={script} sessionId={results.sessionId} index={i} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
