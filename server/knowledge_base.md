@@ -611,3 +611,9 @@ Only these 10 are valid. No others should be used or suggested:
 ### Banned Opening Words (May 2026)
 - NEVER begin any hook or script with the word "Imagine". Hard ban, no exceptions.
 
+
+---
+
+## FEEDBACK LOG
+
+- [2026-05-11] **Writing Style — CTA & General Tone (Mo)**: Always write in a simple way that a 12-year-old would understand, and the way a real person would actually speak out loud. For example, a CTA like "Tap below. 30 seconds. Free." sounds robotic — no real person talks like that. The language should feel natural, conversational, and human. Write how someone would say it to a friend, not how a lawyer or marketer would write it on a billboard.

@@ -55,10 +55,16 @@ export async function getUserByOpenId(openId: string) {
 export async function saveGeneratedScripts(data: InsertGeneratedScript): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  // drizzle-orm/mysql2 returns [ResultSetHeader, FieldPacket[]] for insert
-  const result = await db.insert(generatedScripts).values(data);
-  const header = result as unknown as { insertId?: number };
-  return header.insertId ?? 0;
+  // drizzle-orm/mysql2's query builder returns the ResultSetHeader directly (not in an array),
+  // but db.execute() always returns [ResultSetHeader, FieldPacket[]] where result[0].insertId
+  // is reliable. We use sql template tag for safe parameterized execution.
+  const { sql: sqlCore } = await import("drizzle-orm");
+  const scriptsJson = JSON.stringify(data.scripts);
+  const result = await db.execute(
+    sqlCore`INSERT INTO generated_scripts (lawsuit, hookCategory, aggressiveScale, avatar, referenceScript, extraInstructions, scripts, createdAt)
+     VALUES (${data.lawsuit}, ${data.hookCategory ?? null}, ${data.aggressiveScale}, ${data.avatar}, ${data.referenceScript ?? null}, ${data.extraInstructions ?? null}, ${scriptsJson}, NOW())`
+  ) as unknown as [{ insertId: number }, unknown];
+  return result[0]?.insertId ?? 0;
 }
 
 export async function getScriptHistory(filters?: { lawsuit?: string; search?: string }) {
