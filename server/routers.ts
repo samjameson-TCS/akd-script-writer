@@ -10,6 +10,7 @@ import fs from "fs";
 import path from "path";
 import { TRPCError } from "@trpc/server";
 import { getComplianceRules, COMPLIANCE_LEVEL_LABELS, COMPLIANCE_LEVEL_DESCRIPTIONS, type ComplianceLevel } from "./compliance_levels";
+import { buildKBContext, appendStructuredFeedbackRule, getFeedbackRulesList } from "./kbParser";
 
 // ─── KB helpers ──────────────────────────────────────────────────────────────
 
@@ -29,27 +30,80 @@ function appendToKB(content: string): void {
   fs.appendFileSync(KB_PATH, separator + content);
 }
 
-async function convertFeedbackToKBRule(scriptName: string, feedback: string): Promise<string> {
+/**
+ * Upgraded feedback converter — uses structured JSON output to categorise
+ * the feedback and determine whether it replaces an existing rule.
+ */
+async function convertFeedbackToStructuredRule(opts: {
+  scriptName: string;
+  feedback: string;
+  scriptContent?: { hook: string; body: string; cta: string };
+  existingRules: string;
+}): Promise<{
+  category: "tone" | "structure" | "compliance" | "cta" | "hook" | "body" | "general";
+  lawsuitKey?: string;
+  hookCategory?: string;
+  rule: string;
+  replaces?: string;
+}> {
   const response = await invokeLLM({
     messages: [
       {
         role: "system",
-        content: `You are an expert at converting raw script feedback into concise, actionable writing rules for an AI script writer.
-Your job: take a piece of feedback about a specific script, and write a clear, generalised rule that the AI should follow in ALL future scripts.
-Format: one sentence, starting with a verb ("Avoid...", "Always...", "Never...", "Ensure...", "Use...").
-Do NOT reference the specific script name — make it a universal rule.
-Return ONLY the rule text, nothing else.`,
+        content: `You are an expert at converting raw script feedback into structured, actionable writing rules for a legal advertising AI script writer.
+
+Your job:
+1. Analyse the feedback and the script it refers to.
+2. Determine the CATEGORY: tone | structure | compliance | cta | hook | body | general
+3. If lawsuit-specific, extract lawsuitKey (e.g. "Hernia Mesh", "Depo-Provera").
+4. If hook-category-specific, extract hookCategory (e.g. "Curiosity", "Betrayal").
+5. Write a clear universal rule starting with a verb ("Always", "Never", "Avoid", "Ensure", "Use").
+6. If a very similar rule already exists below, set replaces to its EXACT text so it gets replaced instead of duplicated.
+
+Existing rules:
+${opts.existingRules || "(none yet)"}`,
       },
       {
         role: "user",
-        content: `Script: ${scriptName}\nFeedback: ${feedback}\n\nConvert this into a universal writing rule:`,
+        content: `Script name: ${opts.scriptName}\nFeedback: ${opts.feedback}${opts.scriptContent ? `\nHook: ${opts.scriptContent.hook}\nBody: ${opts.scriptContent.body}\nCTA: ${opts.scriptContent.cta}` : ""}`,
       },
     ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "feedback_rule",
+        strict: true,
+        schema: {
+          type: "object",
+          properties: {
+            category: { type: "string", enum: ["tone", "structure", "compliance", "cta", "hook", "body", "general"] },
+            lawsuitKey: { type: "string" },
+            hookCategory: { type: "string" },
+            rule: { type: "string" },
+            replaces: { type: "string" },
+          },
+          required: ["category", "rule"],
+          additionalProperties: false,
+        },
+      },
+    },
   });
-  const rule = response.choices[0]?.message?.content;
-  return typeof rule === "string" ? rule.trim() : feedback;
+  const raw = response.choices[0]?.message?.content;
+  const parsed = JSON.parse(typeof raw === "string" ? raw : "{}") as {
+    category: "tone" | "structure" | "compliance" | "cta" | "hook" | "body" | "general";
+    lawsuitKey?: string;
+    hookCategory?: string;
+    rule: string;
+    replaces?: string;
+  };
+  return parsed;
 }
 
+/** Legacy single-rule converter kept for backward compat */
+async function convertFeedbackToKBRule(scriptName: string, feedback: string): Promise<string> {
+  const result = await convertFeedbackToStructuredRule({ scriptName, feedback, existingRules: "" });
+  return result.rule;
+}
 function appendFeedbackToKB(scriptName: string, feedback: string, kbRule: string): void {
   const timestamp = new Date().toISOString().split("T")[0];
   const entry = `\n- [${timestamp}] **${scriptName}** — Raw: "${feedback}" → Rule: ${kbRule}`;
@@ -181,24 +235,49 @@ export const appRouter = router({
         pairsCount: z.number().min(1).max(5).default(3),
       }))
       .mutation(async ({ input }) => {
-        const kb = readKB();
+        // ─── Build targeted KB context (structured, relevant sections only) ──────
+        const kbContext = buildKBContext({
+          lawsuitKey: input.lawsuit,
+          hookCategory: input.hookCategory,
+          forIteration: false,
+        });
 
-        // Inject deep research for this lawsuit if available
+        // ─── Deep research doc for this lawsuit ───────────────────────────────────
         const researchKey = getResearchKey(input.lawsuit);
         const researchDoc = researchKey ? await getResearchDocByKey(researchKey).catch(() => null) : null;
         const researchSection = researchDoc
-          ? `\n\n---\n\n## DEEP RESEARCH: ${researchDoc.lawsuitKey}\n\n${researchDoc.content}`
+          ? `\n\n===\n\n## DEEP RESEARCH BRIEF — ${researchDoc.lawsuitKey.toUpperCase()}\nStudy these facts. Use them to ground hooks and body copy in real case details.\n\n${researchDoc.content}`
           : "";
 
+        // ─── 3 most recent news articles for this lawsuit ────────────────────────
+        const recentUpdates = await getLawsuitUpdates(researchKey ?? input.lawsuit).catch(() => []);
+        const top3Updates = recentUpdates.slice(0, 3);
+        const newsSection = top3Updates.length > 0
+          ? `\n\n===\n\n## LATEST NEWS — ${input.lawsuit.toUpperCase()} (use these for Authority/Curiosity hooks)\n` +
+            top3Updates.map((u, i) => `${i + 1}. **${u.title}** (${u.publishedAt ? new Date(u.publishedAt).toLocaleDateString() : "recent"})\n   ${u.summary}\n   Source: ${u.url}`).join("\n\n")
+          : "";
+
+        // ─── Few-shot examples from saved Dashboard scripts ───────────────────────
+        const allSaved = await listSavedScripts().catch(() => []);
+        const lawsuitSaved = allSaved
+          .filter(s => s.lawsuit === input.lawsuit)
+          .slice(0, 3); // max 3 examples
+        const fewShotSection = lawsuitSaved.length > 0
+          ? `\n\n===\n\n## FEW-SHOT EXAMPLES — YOUR BEST SAVED SCRIPTS FOR ${input.lawsuit.toUpperCase()}\nThese are scripts that were reviewed and saved as high quality. Match their voice, energy, and structure.\n\n` +
+            lawsuitSaved.map(s =>
+              `### ${s.name}\n**Hook:** ${s.hook}\n**Body:** ${s.body}\n**CTA:** ${s.cta}`
+            ).join("\n\n")
+          : "";
+
+        // ─── Compliance + word count rules ────────────────────────────────────────
+        const complianceRules = getComplianceRules(input.complianceLevel as ComplianceLevel);
         const wordCountRule = input.platform === "Meta"
           ? "Scripts for Meta MUST be 75\u2013100 words maximum. Be ruthless \u2014 cut every unnecessary word."
           : "Keep scripts 100\u2013150 words.";
 
-        const complianceRules = getComplianceRules(input.complianceLevel as ComplianceLevel);
+        const systemPrompt = `You are the AKD Media AI Script Writer for AKD Media — a legal advertising company. You have been trained on the following structured knowledge base.
 
-        const systemPrompt = `You are the AKD Media AI Script Writer. You have been trained on the following knowledge base. Read it completely before writing any script.
-
-${kb}${researchSection}
+${kbContext}${researchSection}${newsSection}${fewShotSection}
 
 ${complianceRules}
 
@@ -208,8 +287,9 @@ CRITICAL RULES:
 - Match the aggressive scale exactly as requested (unless compliance level caps it)
 - Write for the specified avatar
 - ${wordCountRule}
-- Sound conversational and human \u2014 never robotic or formal
+- Sound conversational and human \u2014 never robotic or formal. Write as a real person speaks.
 - ABSOLUTE BAN: Never begin any hook with the word "Imagine". This is non-negotiable.
+- If few-shot examples were provided above, study them carefully and match their quality level.
 - Return EXACTLY ${input.pairsCount} pairs as a JSON array`;
 
         const userPrompt = `Generate ${input.pairsCount} script pairs for the following parameters:
@@ -361,31 +441,55 @@ Return a JSON array of exactly ${input.pairsCount} pair objects.`;
         extraInstructions: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        const kb = readKB();
+        // ─── Build targeted KB context for iteration ──────────────────────────────
+        const kbContext = buildKBContext({
+          lawsuitKey: input.lawsuit,
+          hookCategory: input.hookCategory,
+          forIteration: true,
+        });
 
-        // Inject deep research for this lawsuit if available
+        // ─── Deep research doc ────────────────────────────────────────────────────
         const researchKey = getResearchKey(input.lawsuit);
         const researchDoc = researchKey ? await getResearchDocByKey(researchKey).catch(() => null) : null;
         const researchSection = researchDoc
-          ? `\n\n---\n\n## DEEP RESEARCH: ${researchDoc.lawsuitKey}\n\n${researchDoc.content}`
+          ? `\n\n===\n\n## DEEP RESEARCH BRIEF — ${researchDoc.lawsuitKey.toUpperCase()}\n\n${researchDoc.content}`
           : "";
 
+        // ─── 3 most recent news articles ─────────────────────────────────────────
+        const recentUpdates = await getLawsuitUpdates(researchKey ?? input.lawsuit).catch(() => []);
+        const top3Updates = recentUpdates.slice(0, 3);
+        const newsSection = top3Updates.length > 0
+          ? `\n\n===\n\n## LATEST NEWS — ${input.lawsuit.toUpperCase()}\n` +
+            top3Updates.map((u, i) => `${i + 1}. **${u.title}**\n   ${u.summary}`).join("\n\n")
+          : "";
+
+        // ─── Few-shot examples from saved Dashboard scripts ───────────────────────
+        const allSaved = await listSavedScripts().catch(() => []);
+        const lawsuitSaved = allSaved
+          .filter(s => s.lawsuit === input.lawsuit)
+          .slice(0, 2);
+        const fewShotSection = lawsuitSaved.length > 0
+          ? `\n\n===\n\n## YOUR BEST SAVED SCRIPTS — USE AS QUALITY BENCHMARK\n\n` +
+            lawsuitSaved.map(s => `### ${s.name}\n**Hook:** ${s.hook}\n**Body:** ${s.body}\n**CTA:** ${s.cta}`).join("\n\n")
+          : "";
+
+        // ─── Compliance + word count rules ────────────────────────────────────────
+        const complianceRules = getComplianceRules(input.complianceLevel as ComplianceLevel);
         const wordCountRule = input.platform === "Meta"
           ? "Scripts for Meta MUST be 75\u2013100 words maximum. Be ruthless \u2014 cut every unnecessary word."
           : "Keep scripts 100\u2013150 words.";
 
-        const complianceRules = getComplianceRules(input.complianceLevel as ComplianceLevel);
+        const systemPrompt = `You are the AKD Media AI Script Writer for AKD Media. You have been trained on the following structured knowledge base.
 
-        const systemPrompt = `You are the AKD Media AI Script Writer. You have been trained on the following knowledge base. Read it completely before writing.
-
-${kb}${researchSection}
+${kbContext}${researchSection}${newsSection}${fewShotSection}
 
 ${complianceRules}
 
 CRITICAL RULES:
-- Sound conversational and human \u2014 never robotic or formal
+- Sound conversational and human \u2014 never robotic or formal. Write as a real person speaks.
 - ${wordCountRule}
 - ABSOLUTE BAN: Never begin any hook with the word "Imagine". This is non-negotiable.
+- Address the feedback provided — this is the most important instruction.
 - Return a single script JSON object`;
 
         const userPrompt = `Regenerate ONE script with the following parameters:
@@ -495,11 +599,20 @@ Return a single script object with: hookCategory, hookAngle (most impactful word
           scriptName: input.scriptName,
           feedbackText: input.feedbackText,
         });
-        // 2. AI converts feedback into a universal KB rule
-        const kbRule = await convertFeedbackToKBRule(input.scriptName, input.feedbackText);
-        // 3. Append both raw feedback and the derived rule to the KB file
-        appendFeedbackToKB(input.scriptName, input.feedbackText, kbRule);
-        return { success: true, kbRule };
+        // 2. Get existing rules so AI can detect near-duplicates and replace instead of append
+        const existingRules = getFeedbackRulesList()
+          .map(r => `[${r.category.toUpperCase()}${r.lawsuitKey ? ` | ${r.lawsuitKey}` : ""}] ${r.rule}`)
+          .join("\n");
+        // 3. AI converts feedback into a structured, categorised KB rule
+        const structured = await convertFeedbackToStructuredRule({
+          scriptName: input.scriptName,
+          feedback: input.feedbackText,
+          existingRules,
+          scriptContent: input.scriptContent,
+        });
+        // 4. Append/replace the rule in the structured FEEDBACK_RULES block
+        appendStructuredFeedbackRule(structured);
+        return { success: true, kbRule: structured.rule, category: structured.category };
       }),
 
     getForScript: protectedProcedure

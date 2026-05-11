@@ -19,6 +19,9 @@ vi.mock("./_core/llm", () => ({
         {
           message: {
             content: JSON.stringify({
+              // Covers structured feedback rule conversion (category + rule required)
+              category: "hook",
+              rule: "Always write hooks with strong emotional urgency and specific details.",
               // Covers pair generation
               scripts: [
                 {
@@ -102,6 +105,13 @@ vi.mock("./lawsuitScraper", () => ({
   scrapeUpdatesForLawsuit: vi.fn().mockResolvedValue([
     { title: "Test Article", url: "https://example.com/article", excerpt: "Test excerpt", publishedAt: "May 2026" },
   ]),
+}));
+
+// ─── Mock kbParser — prevent real file reads, return structured feedback rule ──
+vi.mock("./kbParser", () => ({
+  buildKBContext: vi.fn().mockReturnValue("## CORE WRITING RULES\n\nTest KB context."),
+  appendStructuredFeedbackRule: vi.fn(),
+  getFeedbackRulesList: vi.fn().mockReturnValue([]),
 }));
 
 // ─── Mock fs ──────────────────────────────────────────────────────────────────
