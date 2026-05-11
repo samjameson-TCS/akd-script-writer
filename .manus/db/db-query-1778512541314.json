@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `saved_scripts` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`name` varchar(256) NOT NULL,\n\t`lawsuit` varchar(64) NOT NULL,\n\t`hookCategory` varchar(64),\n\t`hookAngle` varchar(128),\n\t`hook` text NOT NULL,\n\t`body` text NOT NULL,\n\t`cta` text NOT NULL,\n\t`complianceLevel` int,\n\t`platform` varchar(64),\n\t`aggressiveScale` int,\n\t`sessionId` int,\n\t`savedAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `saved_scripts_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PSucjba86eoTqFC.f7a34347a3f5 --database QnFo973ajezBeVYDwDUoyf --execute CREATE TABLE `saved_scripts` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`name` varchar(256) NOT NULL,\n\t`lawsuit` varchar(64) NOT NULL,\n\t`hookCategory` varchar(64),\n\t`hookAngle` varchar(128),\n\t`hook` text NOT NULL,\n\t`body` text NOT NULL,\n\t`cta` text NOT NULL,\n\t`complianceLevel` int,\n\t`platform` varchar(64),\n\t`aggressiveScale` int,\n\t`sessionId` int,\n\t`savedAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `saved_scripts_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1884
+}

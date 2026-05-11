@@ -10,6 +10,7 @@ import History from "./pages/History";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import ResearchLibrary from "./pages/ResearchLibrary";
 import LawsuitUpdates from "./pages/LawsuitUpdates";
+import Dashboard from "./pages/Dashboard";
 function Router() {
   return (
     <Switch>
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/knowledge-base" component={KnowledgeBase} />
       <Route path="/research" component={ResearchLibrary} />
       <Route path="/updates" component={LawsuitUpdates} />
+      <Route path="/dashboard" component={Dashboard} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

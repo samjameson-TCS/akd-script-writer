@@ -76,3 +76,22 @@ export const lawsuitUpdates = mysqlTable("lawsuit_updates", {
 
 export type LawsuitUpdate = typeof lawsuitUpdates.$inferSelect;
 export type InsertLawsuitUpdate = typeof lawsuitUpdates.$inferInsert;
+
+export const savedScripts = mysqlTable("saved_scripts", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 256 }).notNull(),          // e.g. "HM 2 (Curiosity) (hid) (Mo) (2-5)"
+  lawsuit: varchar("lawsuit", { length: 64 }).notNull(),
+  hookCategory: varchar("hookCategory", { length: 64 }),
+  hookAngle: varchar("hookAngle", { length: 128 }),
+  hook: text("hook").notNull(),
+  body: text("body").notNull(),
+  cta: text("cta").notNull(),
+  complianceLevel: int("complianceLevel"),                    // 1, 2, or 3
+  platform: varchar("platform", { length: 64 }),
+  aggressiveScale: int("aggressiveScale"),
+  sessionId: int("sessionId"),                               // FK to generated_scripts.id
+  savedAt: timestamp("savedAt").defaultNow().notNull(),
+});
+
+export type SavedScript = typeof savedScripts.$inferSelect;
+export type InsertSavedScript = typeof savedScripts.$inferInsert;

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, RefreshCw } from "lucide-react";
+import { X, RefreshCw, BookmarkPlus, BookmarkCheck } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,6 +52,32 @@ function ScriptCard({ script, sessionId, index, isPairStart, generationParams, o
   const [copied, setCopied] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [savedKbRule, setSavedKbRule] = useState<string | null>(null);
+  const [savedToDashboard, setSavedToDashboard] = useState(false);
+
+  const saveScriptMutation = trpc.savedScripts.save.useMutation({
+    onSuccess: () => {
+      setSavedToDashboard(true);
+      toast.success("Saved to Dashboard", { description: script.name });
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const handleSaveToDashboard = () => {
+    if (savedToDashboard) return;
+    saveScriptMutation.mutate({
+      name: script.name,
+      lawsuit: generationParams.lawsuit,
+      hookCategory: generationParams.hookCategory,
+      hookAngle: script.hookAngle,
+      hook: script.hook,
+      body: script.body,
+      cta: script.cta,
+      complianceLevel: generationParams.complianceLevel,
+      platform: generationParams.platform,
+      aggressiveScale: generationParams.aggressiveScale,
+      sessionId: sessionId ?? undefined,
+    });
+  };
 
   const saveFeedback = trpc.feedback.save.useMutation({
     onSuccess: (data) => {
@@ -160,15 +186,37 @@ function ScriptCard({ script, sessionId, index, isPairStart, generationParams, o
                 {script.name}
               </CardTitle>
             </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8 text-muted-foreground hover:text-primary shrink-0"
-              onClick={handleCopy}
-              title="Copy script"
-            >
-              {copied ? <CheckCheck className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5" />}
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                size="icon"
+                variant="ghost"
+                className={`h-8 w-8 shrink-0 transition-colors ${
+                  savedToDashboard
+                    ? "text-emerald-500 hover:text-emerald-500"
+                    : "text-muted-foreground hover:text-emerald-500"
+                }`}
+                onClick={handleSaveToDashboard}
+                disabled={savedToDashboard || saveScriptMutation.isPending}
+                title={savedToDashboard ? "Saved to Dashboard" : "Save to Dashboard"}
+              >
+                {saveScriptMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : savedToDashboard ? (
+                  <BookmarkCheck className="h-3.5 w-3.5" />
+                ) : (
+                  <BookmarkPlus className="h-3.5 w-3.5" />
+                )}
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-muted-foreground hover:text-primary shrink-0"
+                onClick={handleCopy}
+                title="Copy script"
+              >
+                {copied ? <CheckCheck className="h-3.5 w-3.5 text-primary" /> : <Copy className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
           </div>
         </CardHeader>
 

@@ -1,6 +1,6 @@
 import { desc, eq, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, generatedScripts, feedbackEntries, kbDocuments, researchDocs, lawsuitUpdates, InsertGeneratedScript, InsertFeedbackEntry, InsertKbDocument } from "../drizzle/schema";
+import { InsertUser, users, generatedScripts, feedbackEntries, kbDocuments, researchDocs, lawsuitUpdates, savedScripts, InsertGeneratedScript, InsertFeedbackEntry, InsertKbDocument, InsertSavedScript } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -178,4 +178,39 @@ export async function getLastScrapeTime(): Promise<Date | null> {
     .orderBy(desc(lawsuitUpdates.scrapedAt))
     .limit(1);
   return result[0]?.scrapedAt ?? null;
+}
+
+// ─── Saved Scripts (Dashboard) ────────────────────────────────────────────────
+
+export async function saveScriptToDashboard(data: InsertSavedScript): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const { sql: sqlCore } = await import("drizzle-orm");
+  const result = await db.execute(
+    sqlCore`INSERT INTO saved_scripts (name, lawsuit, hookCategory, hookAngle, hook, body, cta, complianceLevel, platform, aggressiveScale, sessionId, savedAt)
+     VALUES (${data.name}, ${data.lawsuit}, ${data.hookCategory ?? null}, ${data.hookAngle ?? null}, ${data.hook}, ${data.body}, ${data.cta}, ${data.complianceLevel ?? null}, ${data.platform ?? null}, ${data.aggressiveScale ?? null}, ${data.sessionId ?? null}, NOW())`
+  ) as unknown as [{ insertId: number }, unknown];
+  return result[0]?.insertId ?? 0;
+}
+
+export async function listSavedScripts() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(savedScripts).orderBy(savedScripts.lawsuit, desc(savedScripts.savedAt));
+}
+
+export async function deleteSavedScript(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(savedScripts).where(eq(savedScripts.id, id));
+}
+
+export async function isSavedScript(sessionId: number, scriptName: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db.select({ id: savedScripts.id })
+    .from(savedScripts)
+    .where(eq(savedScripts.name, scriptName))
+    .limit(1);
+  return result.length > 0;
 }

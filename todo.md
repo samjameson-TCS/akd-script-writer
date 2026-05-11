@@ -79,3 +79,11 @@
 - [x] Build Lawsuit Updates page with per-lawsuit news cards and manual Refresh button
 - [x] Add Lawsuit Updates to sidebar nav
 - [x] Update tests (22/22 passing — scraper mocked in existing test suite)
+
+## Phase 11: Save to Dashboard
+- [x] DB schema: add saved_scripts table (id, name, lawsuit, hookCategory, hookAngle, hook, body, cta, complianceLevel, platform, aggressiveScale, sessionId, savedAt)
+- [x] tRPC: savedScripts.save, savedScripts.list (grouped by lawsuit), savedScripts.delete
+- [x] Add "Save to Dashboard" button on each script card in Generate.tsx (with saved/unsaved toggle state)
+- [x] Build Dashboard page: saved scripts grouped by lawsuit accordion, each script shows name/hook/body/CTA/badges, copy + delete buttons
+- [x] Add Dashboard to sidebar nav
+- [x] Update tests for savedScripts procedures — 28/28 passing

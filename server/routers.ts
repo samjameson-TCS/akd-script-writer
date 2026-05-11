@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { z } from "zod";
-import { saveGeneratedScripts, getScriptHistory, getScriptById, saveFeedback, getFeedbackForScript, saveKbDocument, getKbDocuments, listResearchDocs, getResearchDocByKey, getResearchDocById, saveLawsuitUpdates, getLawsuitUpdates, getLastScrapeTime } from "./db";
+import { saveGeneratedScripts, getScriptHistory, getScriptById, saveFeedback, getFeedbackForScript, saveKbDocument, getKbDocuments, listResearchDocs, getResearchDocByKey, getResearchDocById, saveLawsuitUpdates, getLawsuitUpdates, getLastScrapeTime, saveScriptToDashboard, listSavedScripts, deleteSavedScript } from "./db";
 import { scrapeAllLawsuits, scrapeUpdatesForLawsuit } from "./lawsuitScraper";
 import fs from "fs";
 import path from "path";
@@ -627,6 +627,46 @@ Return a single script object with: hookCategory, hookAngle (most impactful word
         const updates = await getLawsuitUpdates(input.lawsuitKey);
         const lastScrape = await getLastScrapeTime();
         return { updates, lastScrape };
+      }),
+  }),
+
+  savedScripts: router({
+    save: protectedProcedure
+      .input(z.object({
+        name: z.string(),
+        lawsuit: z.string(),
+        hookCategory: z.string().optional(),
+        hookAngle: z.string().optional(),
+        hook: z.string(),
+        body: z.string(),
+        cta: z.string(),
+        complianceLevel: z.number().optional(),
+        platform: z.string().optional(),
+        aggressiveScale: z.number().optional(),
+        sessionId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const id = await saveScriptToDashboard(input);
+        return { id };
+      }),
+
+    list: protectedProcedure
+      .query(async () => {
+        const scripts = await listSavedScripts();
+        // Group by lawsuit
+        const grouped: Record<string, typeof scripts> = {};
+        for (const s of scripts) {
+          if (!grouped[s.lawsuit]) grouped[s.lawsuit] = [];
+          grouped[s.lawsuit].push(s);
+        }
+        return { scripts, grouped };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteSavedScript(input.id);
+        return { success: true };
       }),
   }),
 

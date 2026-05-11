@@ -76,6 +76,9 @@ vi.mock("./db", () => ({
   getLawsuitUpdates: vi.fn().mockResolvedValue([]),
   getLastScrapeTime: vi.fn().mockResolvedValue(null),
   saveLawsuitUpdates: vi.fn().mockResolvedValue(undefined),
+  saveScriptToDashboard: vi.fn().mockResolvedValue(1),
+  listSavedScripts: vi.fn().mockResolvedValue([]),
+  deleteSavedScript: vi.fn().mockResolvedValue(undefined),
   // Research docs
   listResearchDocs: vi.fn().mockResolvedValue([
     { id: 1, lawsuitKey: "Hernia Mesh", title: "Hernia Mesh Brief", summary: "Test summary", updatedAt: new Date() },
@@ -529,5 +532,62 @@ describe("meta — grouped lawsuit dropdown", () => {
     for (const l of result.researchBackedLawsuits) {
       expect(result.lawsuits).toContain(l);
     }
+  });
+});
+
+describe("savedScripts — save, list, delete", () => {
+  it("saves a script to the dashboard and returns an id", async () => {
+    const { saveScriptToDashboard } = await import("./db");
+    (saveScriptToDashboard as ReturnType<typeof vi.fn>).mockResolvedValueOnce(99);
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.savedScripts.save({
+      name: "HM 1 (Curiosity) (hidden) (Mo) (2-5)",
+      lawsuit: "Hernia Mesh",
+      hookCategory: "Curiosity",
+      hookAngle: "hidden",
+      hook: "They never told you this about hernia mesh.",
+      body: "Thousands of patients were implanted with defective mesh.",
+      cta: "Tap below to see if you qualify.",
+      complianceLevel: 3,
+      platform: "Meta",
+      aggressiveScale: 3,
+      sessionId: 1,
+    });
+    expect(result.id).toBe(99);
+  });
+
+  it("lists saved scripts grouped by lawsuit", async () => {
+    const { listSavedScripts } = await import("./db");
+    (listSavedScripts as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: 1,
+        name: "HM 1 (Curiosity) (hidden) (Mo) (2-5)",
+        lawsuit: "Hernia Mesh",
+        hookCategory: "Curiosity",
+        hookAngle: "hidden",
+        hook: "They never told you this.",
+        body: "Thousands affected.",
+        cta: "Tap below.",
+        complianceLevel: 3,
+        platform: "Meta",
+        aggressiveScale: 3,
+        sessionId: 1,
+        savedAt: new Date(),
+      },
+    ]);
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.savedScripts.list();
+    expect(Array.isArray(result.scripts)).toBe(true);
+    expect(result.scripts.length).toBe(1);
+    expect(result.grouped["Hernia Mesh"]).toBeDefined();
+    expect(result.grouped["Hernia Mesh"].length).toBe(1);
+  });
+
+  it("deletes a saved script by id", async () => {
+    const { deleteSavedScript } = await import("./db");
+    (deleteSavedScript as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.savedScripts.delete({ id: 1 });
+    expect(result.success).toBe(true);
   });
 });
