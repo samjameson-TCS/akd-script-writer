@@ -601,3 +601,123 @@ describe("savedScripts — save, list, delete", () => {
     expect(result.success).toBe(true);
   });
 });
+
+// ─── Phase 12: AI Architecture Tests ─────────────────────────────────────────
+
+describe("Phase 12 — structured KB context injection", () => {
+  it("generate uses buildKBContext (structured KB parser) instead of raw file read", async () => {
+    const { buildKBContext } = await import("./kbParser");
+    const caller = appRouter.createCaller(createAuthContext());
+    await caller.scripts.generate({
+      lawsuit: "Hernia Mesh",
+      aggressiveScale: 2,
+      avatar: "Patients",
+      scriptNumberStart: 1,
+      pairsCount: 1,
+    });
+    expect(buildKBContext).toHaveBeenCalled();
+    // Should be called with the lawsuit key so lawsuit-specific facts are injected
+    const callArgs = (buildKBContext as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(callArgs).toMatchObject({ lawsuitKey: "Hernia Mesh" });
+  });
+
+  it("generate injects recent lawsuit news articles into the prompt", async () => {
+    const { getLawsuitUpdates } = await import("./db");
+    (getLawsuitUpdates as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      { id: 1, lawsuitKey: "Hernia Mesh", title: "New Hernia Mesh Ruling", summary: "Court rules in favour of plaintiffs.", url: "https://example.com/1", publishedAt: "May 2026", scrapedAt: new Date() },
+      { id: 2, lawsuitKey: "Hernia Mesh", title: "Hernia Mesh Settlement Update", summary: "Settlement fund expanded.", url: "https://example.com/2", publishedAt: "April 2026", scrapedAt: new Date() },
+    ]);
+    const { invokeLLM } = await import("./_core/llm");
+    const caller = appRouter.createCaller(createAuthContext());
+    await caller.scripts.generate({
+      lawsuit: "Hernia Mesh",
+      aggressiveScale: 2,
+      avatar: "Patients",
+      scriptNumberStart: 1,
+      pairsCount: 1,
+    });
+    // The LLM should have been called — check that it was invoked
+    expect(invokeLLM).toHaveBeenCalled();
+    // The system message content should include the news article title
+    const llmCall = (invokeLLM as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) => {
+        const args = call[0] as { messages?: Array<{ role: string; content: string }> };
+        return args?.messages?.some((m) => m.role === "system" && m.content.includes("New Hernia Mesh Ruling"));
+      }
+    );
+    expect(llmCall).toBeDefined();
+  });
+
+  it("generate injects few-shot examples from saved Dashboard scripts", async () => {
+    const { listSavedScripts } = await import("./db");
+    (listSavedScripts as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: 1,
+        name: "HM 1 (Curiosity) (hidden) (Mo) (3-5)",
+        lawsuit: "Hernia Mesh",
+        hookCategory: "Curiosity",
+        hookAngle: "hidden",
+        hook: "They never told you this about hernia mesh.",
+        body: "Thousands of patients were implanted with defective mesh that was never safe.",
+        cta: "Tap below to see if you qualify — it takes 30 seconds.",
+        complianceLevel: 3,
+        platform: "Meta",
+        aggressiveScale: 3,
+        sessionId: 1,
+        savedAt: new Date(),
+      },
+    ]);
+    const { invokeLLM } = await import("./_core/llm");
+    const caller = appRouter.createCaller(createAuthContext());
+    await caller.scripts.generate({
+      lawsuit: "Hernia Mesh",
+      aggressiveScale: 3,
+      avatar: "Patients",
+      scriptNumberStart: 1,
+      pairsCount: 1,
+    });
+    expect(invokeLLM).toHaveBeenCalled();
+    // System prompt should include the saved script as a few-shot example
+    const llmCall = (invokeLLM as ReturnType<typeof vi.fn>).mock.calls.find(
+      (call: unknown[]) => {
+        const args = call[0] as { messages?: Array<{ role: string; content: string }> };
+        return args?.messages?.some((m) => m.role === "system" && m.content.includes("They never told you this about hernia mesh."));
+      }
+    );
+    expect(llmCall).toBeDefined();
+  });
+});
+
+describe("Phase 12 — structured feedback categorisation", () => {
+  it("feedback.save returns a structured kbRule with category and rule fields", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.feedback.save({
+      scriptId: 42,
+      scriptName: "HM 1 (Curiosity) (hid) (Mo) (2-5)",
+      feedbackText: "The hook is too weak and passive — needs more urgency.",
+    });
+    expect(result.success).toBe(true);
+    // kbRule should be a non-empty string
+    expect(typeof result.kbRule).toBe("string");
+    expect(result.kbRule!.length).toBeGreaterThan(0);
+    // appendStructuredFeedbackRule should have been called to update the KB
+    const { appendStructuredFeedbackRule } = await import("./kbParser");
+    expect(appendStructuredFeedbackRule).toHaveBeenCalled();
+  });
+
+  it("feedback.save with scriptContent provides full context to the AI", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.feedback.save({
+      scriptId: 42,
+      scriptName: "HM 2 (Betrayal) (warned) (Mo) (2-5)",
+      feedbackText: "CTA sounds robotic — no one talks like that.",
+      scriptContent: {
+        hook: "They never warned you this could happen.",
+        body: "Internal reports showed the mesh was causing damage.",
+        cta: "Tap below. 30 seconds. Free.",
+      },
+    });
+    expect(result.success).toBe(true);
+    expect(typeof result.kbRule).toBe("string");
+  });
+});

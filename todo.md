@@ -90,10 +90,10 @@
 
 ## Phase 12: AI Learning Architecture Upgrade
 
-- [ ] Restructure knowledge_base.md into 5 named sections: CORE_RULES, LAWSUIT_RULES, HOOK_EXAMPLES, BANNED_PATTERNS, FEEDBACK_RULES
-- [ ] Build structured KB reader: parse sections from file, expose per-section getters
-- [ ] Upgrade system prompt builder: inject only relevant sections (global + lawsuit-specific) instead of full KB
-- [ ] Inject 3 most recent news articles for selected lawsuit into system prompt
-- [ ] Inject 2-3 few-shot examples from saved Dashboard scripts (same lawsuit) into system prompt
-- [ ] Upgrade feedback.save: AI categorises feedback into correct section, updates/replaces existing rule instead of appending raw text
-- [ ] Update tests for upgraded feedback and generate procedures
+- [x] Restructure knowledge_base.md into 5 named sections: CORE_RULES, LAWSUIT_RULES, HOOK_EXAMPLES, BANNED_PATTERNS, FEEDBACK_RULES
+- [x] Build structured KB reader (kbParser.ts): parse sections from file, expose per-section getters
+- [x] Upgrade system prompt builder: inject only relevant sections (global + lawsuit-specific) instead of full KB
+- [x] Inject 3 most recent news articles for selected lawsuit into system prompt
+- [x] Inject 2-3 few-shot examples from saved Dashboard scripts (same lawsuit) into system prompt
+- [x] Upgrade feedback.save: AI categorises feedback into correct section (tone/hook/body/cta/structure/compliance/general), updates/replaces existing rule instead of appending raw text
+- [x] Update tests for upgraded feedback and generate procedures — 28/28 passing
