@@ -50,3 +50,16 @@ export const kbDocuments = mysqlTable("kb_documents", {
 
 export type KbDocument = typeof kbDocuments.$inferSelect;
 export type InsertKbDocument = typeof kbDocuments.$inferInsert;
+
+export const researchDocs = mysqlTable("research_docs", {
+  id: int("id").autoincrement().primaryKey(),
+  lawsuitKey: varchar("lawsuitKey", { length: 64 }).notNull().unique(), // e.g. "Hernia Mesh"
+  title: varchar("title", { length: 256 }).notNull(),
+  content: text("content").notNull(), // Full markdown content
+  summary: text("summary"), // Short summary for AI context injection
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ResearchDoc = typeof researchDocs.$inferSelect;
+export type InsertResearchDoc = typeof researchDocs.$inferInsert;

@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { z } from "zod";
-import { saveGeneratedScripts, getScriptHistory, getScriptById, saveFeedback, getFeedbackForScript, saveKbDocument, getKbDocuments } from "./db";
+import { saveGeneratedScripts, getScriptHistory, getScriptById, saveFeedback, getFeedbackForScript, saveKbDocument, getKbDocuments, listResearchDocs, getResearchDocByKey, getResearchDocById } from "./db";
 import fs from "fs";
 import path from "path";
 import { TRPCError } from "@trpc/server";
@@ -63,11 +63,15 @@ function appendFeedbackToKB(scriptName: string, feedback: string, kbRule: string
 
 const LAWSUIT_CODES: Record<string, string> = {
   "Hernia Mesh": "HM",
+  "PowerPort": "PP",
+  "Depo-Provera": "DEPO",
+  "Social Media Addiction": "SMA",
+  "NY Juvenile Detention": "NYJ",
+  "Illinois Juvenile Detention": "ILJ",
   "Dupixent": "DUP",
   "Snapchat Abuse": "SAB",
   "Camp Lejeune": "CAW",
   "Roundup": "RUP",
-  "Social Media": "SMA",
   "AFFF": "AFFF",
   "NEC Baby Formula": "NEC",
   "Ozempic": "OZE",
@@ -76,9 +80,23 @@ const LAWSUIT_CODES: Record<string, string> = {
   "Zantac": "ZAN",
   "Hair Relaxer": "HR",
   "LDS": "LDS",
-  "Depo Provera": "DEPO",
   "Other": "OTH",
 };
+
+// Maps lawsuit selector values to research_docs.lawsuitKey (exact DB values)
+// Only entries that have a research doc need to be listed here.
+const RESEARCH_KEY_MAP: Record<string, string> = {
+  "Hernia Mesh": "Hernia Mesh",
+  "PowerPort": "PowerPort",
+  "Depo-Provera": "Depo-Provera",
+  "Social Media Addiction": "Social Media Addiction",
+  "NY Juvenile Detention": "NY Juvenile Detention",
+  "Illinois Juvenile Detention": "Illinois Juvenile Detention",
+};
+
+function getResearchKey(lawsuit: string): string | null {
+  return RESEARCH_KEY_MAP[lawsuit] ?? null;
+}
 
 function getLawsuitCode(lawsuit: string): string {
   return LAWSUIT_CODES[lawsuit] ?? lawsuit.substring(0, 3).toUpperCase();
@@ -151,13 +169,20 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         const kb = readKB();
 
+        // Inject deep research for this lawsuit if available
+        const researchKey = getResearchKey(input.lawsuit);
+        const researchDoc = researchKey ? await getResearchDocByKey(researchKey).catch(() => null) : null;
+        const researchSection = researchDoc
+          ? `\n\n---\n\n## DEEP RESEARCH: ${researchDoc.lawsuitKey}\n\n${researchDoc.content}`
+          : "";
+
         const wordCountRule = input.platform === "Meta"
           ? "Scripts for Meta MUST be 75–100 words maximum. Be ruthless — cut every unnecessary word."
           : "Keep scripts 100–150 words.";
 
         const systemPrompt = `You are the AKD Media AI Script Writer. You have been trained on the following knowledge base. Read it completely before writing any script.
 
-${kb}
+${kb}${researchSection}
 
 CRITICAL RULES:
 - Each generation produces PAIRS of scripts. Each pair shares the same body and CTA, but has TWO different hook lines with different hook angles.
@@ -320,13 +345,20 @@ Return a JSON array of exactly ${input.pairsCount} pair objects.`;
       .mutation(async ({ input }) => {
         const kb = readKB();
 
+        // Inject deep research for this lawsuit if available
+        const researchKey = getResearchKey(input.lawsuit);
+        const researchDoc = researchKey ? await getResearchDocByKey(researchKey).catch(() => null) : null;
+        const researchSection = researchDoc
+          ? `\n\n---\n\n## DEEP RESEARCH: ${researchDoc.lawsuitKey}\n\n${researchDoc.content}`
+          : "";
+
         const wordCountRule = input.platform === "Meta"
           ? "Scripts for Meta MUST be 75–100 words maximum. Be ruthless — cut every unnecessary word."
           : "Keep scripts 100–150 words.";
 
         const systemPrompt = `You are the AKD Media AI Script Writer. You have been trained on the following knowledge base. Read it completely before writing.
 
-${kb}
+${kb}${researchSection}
 
 CRITICAL RULES:
 - Sound conversational and human — never robotic or formal
@@ -478,6 +510,30 @@ Return a single script object with: hookCategory, hookAngle (most impactful word
   }),
 
   // ─── Notion Push ─────────────────────────────────────────────────────────
+  // ─── Research Docs ────────────────────────────────────────────────────────────
+  research: router({
+    list: protectedProcedure
+      .query(async () => {
+        return listResearchDocs();
+      }),
+
+    getByKey: protectedProcedure
+      .input(z.object({ lawsuitKey: z.string() }))
+      .query(async ({ input }) => {
+        const doc = await getResearchDocByKey(input.lawsuitKey);
+        if (!doc) throw new TRPCError({ code: "NOT_FOUND", message: `No research doc found for lawsuit: ${input.lawsuitKey}` });
+        return doc;
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const doc = await getResearchDocById(input.id);
+        if (!doc) throw new TRPCError({ code: "NOT_FOUND" });
+        return doc;
+      }),
+  }),
+
   notion: router({
     push: protectedProcedure
       .input(z.object({

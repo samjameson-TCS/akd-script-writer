@@ -72,6 +72,14 @@ vi.mock("./db", () => ({
   getFeedbackForScript: vi.fn().mockResolvedValue([]),
   saveKbDocument: vi.fn().mockResolvedValue(undefined),
   getKbDocuments: vi.fn().mockResolvedValue([]),
+  // Research docs
+  listResearchDocs: vi.fn().mockResolvedValue([
+    { id: 1, lawsuitKey: "Hernia Mesh", title: "Hernia Mesh Brief", summary: "Test summary", updatedAt: new Date() },
+  ]),
+  getResearchDocByKey: vi.fn().mockResolvedValue(null), // null = no research doc for this lawsuit (safe default)
+  getResearchDocById: vi.fn().mockResolvedValue({
+    id: 1, lawsuitKey: "Hernia Mesh", title: "Hernia Mesh Brief", content: "# Research\n\nTest content.", summary: "Test summary", createdAt: new Date(), updatedAt: new Date(),
+  }),
 }));
 
 // ─── Mock fs ──────────────────────────────────────────────────────────────────
@@ -341,5 +349,60 @@ describe("auth.logout", () => {
     const result = await caller.auth.logout();
     expect(result.success).toBe(true);
     expect(clearedCookies.length).toBe(1);
+  });
+});
+
+describe("research.list", () => {
+  it("returns an array of research doc summaries", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.research.list();
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBeGreaterThan(0);
+    expect(result[0]).toHaveProperty("lawsuitKey");
+    expect(result[0]).toHaveProperty("title");
+    expect(result[0]).toHaveProperty("summary");
+  });
+});
+
+describe("research.getById", () => {
+  it("returns a full research doc with content", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.research.getById({ id: 1 });
+    expect(result).toBeDefined();
+    expect(typeof result.content).toBe("string");
+    expect(result.content.length).toBeGreaterThan(0);
+    expect(result.lawsuitKey).toBe("Hernia Mesh");
+  });
+});
+
+describe("research.getByKey", () => {
+  it("throws NOT_FOUND when no doc exists for the key", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    await expect(caller.research.getByKey({ lawsuitKey: "Unknown Lawsuit" })).rejects.toThrow();
+  });
+});
+
+describe("scripts.generate — research injection", () => {
+  it("generates scripts for a lawsuit with a research doc (Hernia Mesh) without error", async () => {
+    // Override mock to return a research doc for Hernia Mesh
+    const { getResearchDocByKey } = await import("./db");
+    (getResearchDocByKey as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      id: 1,
+      lawsuitKey: "Hernia Mesh",
+      title: "Hernia Mesh Brief",
+      content: "# Research\n\nHernia mesh complications include pain, infection, and mesh migration.",
+      summary: "Test summary",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.scripts.generate({
+      lawsuit: "Hernia Mesh",
+      aggressiveScale: 2,
+      avatar: "Patients",
+      scriptNumberStart: 1,
+    });
+    expect(result.scripts.length).toBeGreaterThan(0);
+    expect(result.sessionId).toBe(42);
   });
 });

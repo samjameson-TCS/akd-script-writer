@@ -1,6 +1,6 @@
 import { desc, eq, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, generatedScripts, feedbackEntries, kbDocuments, InsertGeneratedScript, InsertFeedbackEntry, InsertKbDocument } from "../drizzle/schema";
+import { InsertUser, users, generatedScripts, feedbackEntries, kbDocuments, researchDocs, InsertGeneratedScript, InsertFeedbackEntry, InsertKbDocument } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -110,4 +110,32 @@ export async function getKbDocuments() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return db.select().from(kbDocuments).orderBy(desc(kbDocuments.uploadedAt));
+}
+
+// ─── Research Docs ────────────────────────────────────────────────────────────
+
+export async function listResearchDocs() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select({
+    id: researchDocs.id,
+    lawsuitKey: researchDocs.lawsuitKey,
+    title: researchDocs.title,
+    summary: researchDocs.summary,
+    updatedAt: researchDocs.updatedAt,
+  }).from(researchDocs).orderBy(researchDocs.lawsuitKey);
+}
+
+export async function getResearchDocByKey(lawsuitKey: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(researchDocs).where(eq(researchDocs.lawsuitKey, lawsuitKey)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function getResearchDocById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(researchDocs).where(eq(researchDocs.id, id)).limit(1);
+  return result[0] ?? null;
 }

@@ -54,3 +54,12 @@
 - [x] Frontend: feedback submit on a script card triggers KB update (user sees "Feedback saved + KB updated" toast)
 - [x] Frontend: each script card has a "Regenerate" button that calls regenerateOne and replaces just that card in the results array
 - [x] Frontend: show a loading spinner on the specific card being regenerated (other cards stay static)
+
+## Phase 8: Deep Research Library
+- [x] DB schema: add research_docs table (id, lawsuit_key, title, content, created_at)
+- [x] Seed 6 deep research docs into DB (HM, PP, NY, DEPO, SMA, ILM)
+- [x] tRPC: research.list (all docs, id + title + lawsuit_key) and research.getByKey (full content)
+- [x] Research Library page with sidebar nav entry, list view, and full markdown viewer
+- [x] Wire AI generate mutation to inject relevant research doc into system prompt when lawsuit matches
+- [x] Wire AI regenerateOne to also use research doc
+- [x] Update tests for research procedures
