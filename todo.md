@@ -47,3 +47,10 @@
 - [x] Update KB Section 4 (hook categories) with exact 10 types and descriptions
 - [x] Add Section 13 (Permanent Memory) to KB with all structural decisions
 - [x] Update vitest tests: 13/13 passing (new pair structure, hook angle assertions, category list)
+
+## Phase 7: Feedback Learning Loop + Inline Regeneration
+- [x] Backend: feedback.save mutation also triggers AI to convert raw comment into a structured KB rule and appends it to knowledge_base.md
+- [x] Backend: scripts.regenerateOne mutation — regenerates a single script in-place using its original params + feedback + updated KB
+- [x] Frontend: feedback submit on a script card triggers KB update (user sees "Feedback saved + KB updated" toast)
+- [x] Frontend: each script card has a "Regenerate" button that calls regenerateOne and replaces just that card in the results array
+- [x] Frontend: show a loading spinner on the specific card being regenerated (other cards stay static)

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X } from "lucide-react";
+import { X, RefreshCw } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,30 +23,63 @@ type GeneratedScript = {
   variantIndex: number;
 };
 
+type GenerationParams = {
+  lawsuit: string;
+  hookCategory?: string;
+  aggressiveScale: number;
+  avatar: string;
+  platform: "Meta" | "TikTok" | "YouTube" | "Other";
+  scriptNumberStart: number;
+  referenceScript?: string;
+  extraInstructions?: string;
+};
+
 // ─── ScriptCard ───────────────────────────────────────────────────────────────
 
 type ScriptCardProps = {
   script: GeneratedScript;
   sessionId: number | null;
   index: number;
-  isPairStart: boolean; // true = first of a pair, show pair divider
+  isPairStart: boolean;
+  generationParams: GenerationParams;
+  onReplace: (index: number, newScript: GeneratedScript) => void;
 };
 
-function ScriptCard({ script, sessionId, index, isPairStart }: ScriptCardProps) {
+function ScriptCard({ script, sessionId, index, isPairStart, generationParams, onReplace }: ScriptCardProps) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
   const [copied, setCopied] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [savedKbRule, setSavedKbRule] = useState<string | null>(null);
 
   const saveFeedback = trpc.feedback.save.useMutation({
-    onSuccess: () => {
-      toast.success("Feedback saved to Knowledge Base");
+    onSuccess: (data) => {
+      setSavedKbRule(data.kbRule ?? null);
+      toast.success("Feedback saved + KB updated", {
+        description: data.kbRule ? `Rule: "${data.kbRule}"` : undefined,
+        duration: 5000,
+      });
       setFeedbackText("");
-      setFeedbackOpen(false);
     },
     onError: (err) => toast.error(err.message),
   });
 
+  const regenerateOne = trpc.scripts.regenerateOne.useMutation({
+    onSuccess: (data) => {
+      onReplace(index, data.script as GeneratedScript);
+      setIsRegenerating(false);
+      setFeedbackOpen(false);
+      setSavedKbRule(null);
+      toast.success("Script regenerated");
+    },
+    onError: (err) => {
+      setIsRegenerating(false);
+      toast.error(err.message);
+    },
+  });
+
   const fullText = `${script.name}\n\nHOOK\n${script.hook}\n\nBODY\n${script.body}\n\nCTA\n${script.cta}`;
+  const wordCount = fullText.split(/\s+/).filter(Boolean).length;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(fullText);
@@ -54,8 +87,33 @@ function ScriptCard({ script, sessionId, index, isPairStart }: ScriptCardProps) 
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Word count
-  const wordCount = fullText.split(/\s+/).filter(Boolean).length;
+  const handleSaveFeedback = () => {
+    if (!sessionId) return toast.error("No session ID — please regenerate the batch first");
+    if (!feedbackText.trim()) return;
+    saveFeedback.mutate({
+      scriptId: sessionId,
+      scriptName: script.name,
+      feedbackText: feedbackText.trim(),
+      scriptContent: { hook: script.hook, body: script.body, cta: script.cta },
+    });
+  };
+
+  const handleRegenerate = () => {
+    setIsRegenerating(true);
+    const scriptNum = generationParams.scriptNumberStart + script.pairIndex;
+    regenerateOne.mutate({
+      lawsuit: generationParams.lawsuit,
+      hookCategory: generationParams.hookCategory,
+      aggressiveScale: generationParams.aggressiveScale,
+      avatar: generationParams.avatar,
+      platform: generationParams.platform,
+      scriptNumber: scriptNum,
+      existingScript: script,
+      feedbackText: feedbackText.trim() || undefined,
+      referenceScript: generationParams.referenceScript,
+      extraInstructions: generationParams.extraInstructions,
+    });
+  };
 
   return (
     <>
@@ -66,10 +124,20 @@ function ScriptCard({ script, sessionId, index, isPairStart }: ScriptCardProps) 
           <div className="flex-1 h-px bg-border/30" />
         </div>
       )}
-      <Card className={`border bg-card relative overflow-hidden ${script.variantIndex === 0 ? "border-primary/20" : "border-border/60"}`}>
+      <Card className={`border bg-card relative overflow-hidden transition-opacity ${isRegenerating ? "opacity-50" : ""} ${script.variantIndex === 0 ? "border-primary/20" : "border-border/60"}`}>
         {/* Gold accent top border on variant A */}
         {script.variantIndex === 0 && (
           <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent" />
+        )}
+
+        {/* Regenerating overlay */}
+        {isRegenerating && (
+          <div className="absolute inset-0 flex items-center justify-center bg-card/60 z-10 rounded-lg">
+            <div className="flex flex-col items-center gap-2 text-primary">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <span className="text-xs font-medium">Regenerating...</span>
+            </div>
+          </div>
         )}
 
         <CardHeader className="pb-3">
@@ -128,10 +196,22 @@ function ScriptCard({ script, sessionId, index, isPairStart }: ScriptCardProps) 
               variant="outline"
               className="flex-1 h-8 text-xs gap-1.5 border-border/60 hover:border-primary/50 hover:text-primary"
               onClick={() => setFeedbackOpen(!feedbackOpen)}
+              disabled={isRegenerating}
             >
               <MessageSquare className="h-3 w-3" />
               Feedback
               {feedbackOpen ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1.5 border-border/60 hover:border-amber-500/50 hover:text-amber-500"
+              onClick={handleRegenerate}
+              disabled={isRegenerating || regenerateOne.isPending}
+              title="Regenerate this script"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Redo
             </Button>
           </div>
 
@@ -139,26 +219,50 @@ function ScriptCard({ script, sessionId, index, isPairStart }: ScriptCardProps) 
           {feedbackOpen && (
             <div className="space-y-2 pt-1">
               <Textarea
-                placeholder="What's wrong with this script? What should be improved? This feedback will be stored permanently in the Knowledge Base."
+                placeholder="What's wrong with this script? Be specific — this will be saved to the Knowledge Base as a permanent rule that affects all future generations."
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
                 className="min-h-[80px] text-sm bg-muted/30 border-border/60 resize-none"
               />
-              <Button
-                size="sm"
-                className="w-full h-8 text-xs"
-                disabled={!feedbackText.trim() || saveFeedback.isPending}
-                onClick={() => {
-                  if (!sessionId) return toast.error("No session ID — please regenerate");
-                  saveFeedback.mutate({
-                    scriptId: sessionId,
-                    scriptName: script.name,
-                    feedbackText: feedbackText.trim(),
-                  });
-                }}
-              >
-                {saveFeedback.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save Feedback to KB"}
-              </Button>
+
+              {/* KB rule preview after save */}
+              {savedKbRule && (
+                <div className="rounded-md bg-primary/5 border border-primary/20 px-3 py-2">
+                  <p className="text-xs text-primary/70 font-semibold uppercase tracking-wider mb-1">KB Rule Added</p>
+                  <p className="text-xs text-foreground italic">"{savedKbRule}"</p>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 h-8 text-xs border-border/60"
+                  disabled={!feedbackText.trim() || saveFeedback.isPending}
+                  onClick={handleSaveFeedback}
+                >
+                  {saveFeedback.isPending ? (
+                    <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Saving to KB...</>
+                  ) : (
+                    "Save to KB"
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 h-8 text-xs gap-1.5"
+                  disabled={isRegenerating || regenerateOne.isPending}
+                  onClick={handleRegenerate}
+                >
+                  {isRegenerating || regenerateOne.isPending ? (
+                    <><Loader2 className="h-3 w-3 animate-spin" /> Regenerating...</>
+                  ) : (
+                    <><RefreshCw className="h-3 w-3" /> Save & Redo</>
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground/50">
+                "Save to KB" stores the rule for future generations. "Save & Redo" also regenerates this script now.
+              </p>
             </div>
           )}
         </CardContent>
@@ -210,9 +314,18 @@ export default function Generate() {
     });
   };
 
+  // Replace a single script in-place when regenerated
+  const handleReplaceScript = (index: number, newScript: GeneratedScript) => {
+    setResults(prev => {
+      if (!prev) return prev;
+      const updated = [...prev.scripts];
+      updated[index] = newScript;
+      return { ...prev, scripts: updated };
+    });
+  };
+
   const aggressiveLabels = ["", "1 — Very Safe", "2 — Safe", "3 — Moderate", "4 — Aggressive", "5 — Very Aggressive"];
 
-  // Hook category display labels with emoji
   const hookCategoryLabels: Record<string, string> = {
     "Symptom": "🚨 Symptom",
     "Compensation": "💰 Compensation",
@@ -224,6 +337,18 @@ export default function Generate() {
     "Family": "🧒 Family",
     "Question": "❓ Question",
     "Authority": "🔍 Authority",
+  };
+
+  // Build generation params object to pass down to each ScriptCard
+  const generationParams: GenerationParams = {
+    lawsuit,
+    hookCategory: hookCategories.join(", ") || undefined,
+    aggressiveScale,
+    avatar,
+    platform,
+    scriptNumberStart,
+    referenceScript: referenceScript || undefined,
+    extraInstructions: extraInstructions || undefined,
   };
 
   return (
@@ -383,7 +508,7 @@ export default function Generate() {
             <div className="space-y-1.5">
               <Label className="text-xs font-medium text-foreground">Extra Instructions <span className="text-muted-foreground">(optional)</span></Label>
               <Textarea
-                placeholder="Any additional context or constraints for this generation..."
+                placeholder="Any specific direction for this batch..."
                 value={extraInstructions}
                 onChange={(e) => setExtraInstructions(e.target.value)}
                 className="min-h-[80px] text-sm bg-muted/30 border-border/60 resize-none"
@@ -391,7 +516,7 @@ export default function Generate() {
             </div>
 
             <Button
-              className="w-full gap-2 font-medium"
+              className="w-full gap-2"
               onClick={handleGenerate}
               disabled={generate.isPending}
             >
@@ -429,7 +554,6 @@ export default function Generate() {
 
           {results && (
             <>
-              {/* Pair header for first pair */}
               {results.scripts.length > 0 && (
                 <div className="flex items-center gap-3 pb-1">
                   <div className="flex-1 h-px bg-border/30" />
@@ -439,11 +563,13 @@ export default function Generate() {
               )}
               {results.scripts.map((script, i) => (
                 <ScriptCard
-                  key={i}
+                  key={`${i}-${script.name}`}
                   script={script}
                   sessionId={results.sessionId}
                   index={i}
                   isPairStart={script.variantIndex === 0 && i > 0}
+                  generationParams={generationParams}
+                  onReplace={handleReplaceScript}
                 />
               ))}
             </>

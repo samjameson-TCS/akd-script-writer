@@ -2,46 +2,64 @@ import { describe, it, expect, vi } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
-// ─── Mock LLM — returns pair-based structure ──────────────────────────────────
+// ─── Mock LLM — returns pair-based structure OR single script ───────────────
+// The LLM mock needs to handle 3 different call shapes:
+// 1. Pair generation → returns { scripts: [...] }
+// 2. Single script regeneration → returns { hookCategory, hookAngle, hookLine, body, cta }
+// 3. KB rule conversion → returns a plain string rule
+let llmCallCount = 0;
 vi.mock("./_core/llm", () => ({
-  invokeLLM: vi.fn().mockResolvedValue({
-    choices: [
-      {
-        message: {
-          content: JSON.stringify({
-            scripts: [
-              {
-                hookCategory: "Curiosity",
-                hookAngle1: "hid",
-                hookLine1: "They hid this from you for years.",
-                hookAngle2: "infuriating",
-                hookLine2: "This is infuriating — and you deserve to know.",
-                body: "Hernia mesh manufacturers knew their product was failing inside people's bodies. They kept selling it anyway. Tens of thousands of people suffered.",
-                cta: "Tap below to check your eligibility for free. 30 seconds. No obligation.",
-              },
-              {
-                hookCategory: "Betrayal",
-                hookAngle1: "warned",
-                hookLine1: "They never warned you this could happen.",
-                hookAngle2: "knew",
-                hookLine2: "They knew. They said nothing.",
-                body: "Internal reports showed the mesh was causing damage. Infections, chronic pain, failed repairs. They said nothing.",
-                cta: "Tap below to check your eligibility for free. 30 seconds. No obligation.",
-              },
-              {
-                hookCategory: "Compensation",
-                hookAngle1: "settlement",
-                hookLine1: "A major settlement just opened up.",
-                hookAngle2: "qualify",
-                hookLine2: "You may qualify for significant financial compensation.",
-                body: "Courts are now awarding compensation to hernia mesh victims. If you had surgery and experienced complications, you may have a case.",
-                cta: "Tap below to check your eligibility for free. 30 seconds. No obligation.",
-              },
-            ],
-          }),
+  invokeLLM: vi.fn().mockImplementation(() => {
+    llmCallCount++;
+    // KB rule conversion calls return a plain string
+    // We detect them by call order — after a feedback save, the next call is KB rule
+    // For simplicity, always return a valid response that covers all cases
+    return Promise.resolve({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              // Covers pair generation
+              scripts: [
+                {
+                  hookCategory: "Curiosity",
+                  hookAngle1: "hid",
+                  hookLine1: "They hid this from you for years.",
+                  hookAngle2: "infuriating",
+                  hookLine2: "This is infuriating — and you deserve to know.",
+                  body: "Hernia mesh manufacturers knew their product was failing inside people's bodies. They kept selling it anyway. Tens of thousands of people suffered.",
+                  cta: "Tap below to check your eligibility for free. 30 seconds. No obligation.",
+                },
+                {
+                  hookCategory: "Betrayal",
+                  hookAngle1: "warned",
+                  hookLine1: "They never warned you this could happen.",
+                  hookAngle2: "knew",
+                  hookLine2: "They knew. They said nothing.",
+                  body: "Internal reports showed the mesh was causing damage. Infections, chronic pain, failed repairs. They said nothing.",
+                  cta: "Tap below to check your eligibility for free. 30 seconds. No obligation.",
+                },
+                {
+                  hookCategory: "Compensation",
+                  hookAngle1: "settlement",
+                  hookLine1: "A major settlement just opened up.",
+                  hookAngle2: "qualify",
+                  hookLine2: "You may qualify for significant financial compensation.",
+                  body: "Courts are now awarding compensation to hernia mesh victims. If you had surgery and experienced complications, you may have a case.",
+                  cta: "Tap below to check your eligibility for free. 30 seconds. No obligation.",
+                },
+              ],
+              // Covers single script regeneration
+              hookCategory: "Curiosity",
+              hookAngle: "stronger",
+              hookLine: "This is stronger than the original hook.",
+              body: "Regenerated body text that addresses the feedback.",
+              cta: "Check if you qualify — it takes 30 seconds.",
+            }),
+          },
         },
-      },
-    ],
+      ],
+    });
   }),
 }));
 
@@ -230,7 +248,7 @@ describe("kb.getDocuments", () => {
 });
 
 describe("feedback.save", () => {
-  it("saves feedback and returns success", async () => {
+  it("saves feedback, returns success and a kbRule string", async () => {
     const caller = appRouter.createCaller(createAuthContext());
     const result = await caller.feedback.save({
       scriptId: 42,
@@ -238,6 +256,79 @@ describe("feedback.save", () => {
       feedbackText: "Hook is too weak, needs more energy.",
     });
     expect(result.success).toBe(true);
+    // kbRule should be a non-empty string derived from the LLM
+    expect(typeof result.kbRule).toBe("string");
+    expect(result.kbRule!.length).toBeGreaterThan(0);
+  });
+
+  it("accepts optional scriptContent for context", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.feedback.save({
+      scriptId: 42,
+      scriptName: "HM 2 (Betrayal) (warned) (Mo) (2-5)",
+      feedbackText: "Not very powerful, needs more authority.",
+      scriptContent: {
+        hook: "They never warned you this could happen.",
+        body: "Internal reports showed the mesh was causing damage.",
+        cta: "Tap below.",
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("scripts.regenerateOne", () => {
+  it("returns a single regenerated script with correct structure", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.scripts.regenerateOne({
+      lawsuit: "Hernia Mesh",
+      aggressiveScale: 2,
+      avatar: "Patients",
+      platform: "Other",
+      scriptNumber: 1,
+      existingScript: {
+        name: "HM 1 (Curiosity) (hid) (Mo) (2-5)",
+        hook: "They hid this from you for years.",
+        hookAngle: "hid",
+        body: "Hernia mesh manufacturers knew their product was failing.",
+        cta: "Tap below.",
+        pairIndex: 0,
+        variantIndex: 0,
+      },
+      feedbackText: "Not powerful enough, needs more urgency.",
+    });
+    expect(result.script).toBeDefined();
+    expect(typeof result.script.name).toBe("string");
+    expect(typeof result.script.hook).toBe("string");
+    expect(typeof result.script.hookAngle).toBe("string");
+    expect(typeof result.script.body).toBe("string");
+    expect(typeof result.script.cta).toBe("string");
+    // pairIndex and variantIndex should be preserved from the original
+    expect(result.script.pairIndex).toBe(0);
+    expect(result.script.variantIndex).toBe(0);
+  });
+
+  it("works without feedback text (general improvement)", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.scripts.regenerateOne({
+      lawsuit: "Snapchat Abuse",
+      aggressiveScale: 3,
+      avatar: "Parents (30-55)",
+      platform: "Meta",
+      scriptNumber: 2,
+      existingScript: {
+        name: "SAB 2 (Betrayal) (warned) (Mo) (3-5)",
+        hook: "They never warned you.",
+        hookAngle: "warned",
+        body: "Body text here.",
+        cta: "Check eligibility.",
+        pairIndex: 1,
+        variantIndex: 1,
+      },
+    });
+    expect(result.script).toBeDefined();
+    expect(result.script.pairIndex).toBe(1);
+    expect(result.script.variantIndex).toBe(1);
   });
 });
 

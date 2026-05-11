@@ -27,13 +27,33 @@ function appendToKB(content: string): void {
   fs.appendFileSync(KB_PATH, separator + content);
 }
 
-function appendFeedbackToKB(scriptName: string, feedback: string): void {
-  const timestamp = new Date().toISOString();
-  const entry = `\n- [${timestamp}] **${scriptName}**: ${feedback}`;
-  let kb = readKB();
+async function convertFeedbackToKBRule(scriptName: string, feedback: string): Promise<string> {
+  const response = await invokeLLM({
+    messages: [
+      {
+        role: "system",
+        content: `You are an expert at converting raw script feedback into concise, actionable writing rules for an AI script writer.
+Your job: take a piece of feedback about a specific script, and write a clear, generalised rule that the AI should follow in ALL future scripts.
+Format: one sentence, starting with a verb ("Avoid...", "Always...", "Never...", "Ensure...", "Use...").
+Do NOT reference the specific script name — make it a universal rule.
+Return ONLY the rule text, nothing else.`,
+      },
+      {
+        role: "user",
+        content: `Script: ${scriptName}\nFeedback: ${feedback}\n\nConvert this into a universal writing rule:`,
+      },
+    ],
+  });
+  const rule = response.choices[0]?.message?.content;
+  return typeof rule === "string" ? rule.trim() : feedback;
+}
+
+function appendFeedbackToKB(scriptName: string, feedback: string, kbRule: string): void {
+  const timestamp = new Date().toISOString().split("T")[0];
+  const entry = `\n- [${timestamp}] **${scriptName}** — Raw: "${feedback}" → Rule: ${kbRule}`;
+  const kb = readKB();
   if (kb.includes("## FEEDBACK LOG")) {
-    kb = kb + entry;
-    fs.writeFileSync(KB_PATH, kb);
+    fs.writeFileSync(KB_PATH, kb + entry);
   } else {
     fs.appendFileSync(KB_PATH, `\n\n---\n\n## FEEDBACK LOG\n${entry}`);
   }
@@ -272,6 +292,118 @@ Return a JSON array of exactly ${input.pairsCount} pair objects.`;
         return { scripts: namedScripts, sessionId };
       }),
 
+    regenerateOne: protectedProcedure
+      .input(z.object({
+        // Original generation params
+        lawsuit: z.string(),
+        hookCategory: z.string().optional(),
+        aggressiveScale: z.number().min(1).max(5),
+        avatar: z.string(),
+        platform: z.enum(["Meta", "TikTok", "YouTube", "Other"]).default("Other"),
+        scriptNumber: z.number(),
+        // The existing script being replaced
+        existingScript: z.object({
+          name: z.string(),
+          hook: z.string(),
+          hookAngle: z.string(),
+          body: z.string(),
+          cta: z.string(),
+          pairIndex: z.number(),
+          variantIndex: z.number(),
+        }),
+        // Feedback that triggered the regeneration
+        feedbackText: z.string().optional(),
+        // Original generation context (for prompt fidelity)
+        referenceScript: z.string().optional(),
+        extraInstructions: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const kb = readKB();
+
+        const wordCountRule = input.platform === "Meta"
+          ? "Scripts for Meta MUST be 75–100 words maximum. Be ruthless — cut every unnecessary word."
+          : "Keep scripts 100–150 words.";
+
+        const systemPrompt = `You are the AKD Media AI Script Writer. You have been trained on the following knowledge base. Read it completely before writing.
+
+${kb}
+
+CRITICAL RULES:
+- Sound conversational and human — never robotic or formal
+- ${wordCountRule}
+- ABSOLUTE BAN: Never begin any hook with the word "Imagine". This is non-negotiable.
+- Return a single script JSON object`;
+
+        const userPrompt = `Regenerate ONE script with the following parameters:
+
+Lawsuit: ${input.lawsuit}
+Platform: ${input.platform}
+Hook Category: ${input.hookCategory ?? "(AI decides — must be one of the 10 valid categories)"}
+Aggressive Scale: ${input.aggressiveScale}/5
+Target Avatar: ${input.avatar}
+
+The script being replaced:
+Name: ${input.existingScript.name}
+Hook: ${input.existingScript.hook}
+Body: ${input.existingScript.body}
+CTA: ${input.existingScript.cta}
+
+${input.referenceScript ? `Original reference script:\n${input.referenceScript}\n` : ""}
+${input.extraInstructions ? `Extra instructions: ${input.extraInstructions}\n` : ""}
+${input.feedbackText ? `Feedback to address: ${input.feedbackText}\n\nAddress this feedback specifically while keeping the same hook category and overall structure.` : "Improve this script while keeping the same hook category and overall structure."}
+
+Return a single script object with: hookCategory, hookAngle (most impactful word/phrase, 1-3 words lowercase), hookLine, body, cta.`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "single_script_output",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  hookCategory: { type: "string" },
+                  hookAngle: { type: "string" },
+                  hookLine: { type: "string" },
+                  body: { type: "string" },
+                  cta: { type: "string" },
+                },
+                required: ["hookCategory", "hookAngle", "hookLine", "body", "cta"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const rawContent = response.choices[0]?.message?.content;
+        const content = typeof rawContent === "string" ? rawContent : "{}";
+        const parsed = JSON.parse(content) as {
+          hookCategory: string;
+          hookAngle: string;
+          hookLine: string;
+          body: string;
+          cta: string;
+        };
+
+        const effectiveCategory = input.hookCategory ?? parsed.hookCategory;
+        const newScript = {
+          name: buildScriptName(input.lawsuit, effectiveCategory, parsed.hookAngle, input.scriptNumber, input.aggressiveScale),
+          hook: parsed.hookLine,
+          hookAngle: parsed.hookAngle,
+          body: parsed.body,
+          cta: parsed.cta,
+          pairIndex: input.existingScript.pairIndex,
+          variantIndex: input.existingScript.variantIndex,
+        };
+
+        return { script: newScript };
+      }),
+
     history: protectedProcedure
       .input(z.object({
         lawsuit: z.string().optional(),
@@ -296,16 +428,24 @@ Return a JSON array of exactly ${input.pairsCount} pair objects.`;
         scriptId: z.number(),
         scriptName: z.string(),
         feedbackText: z.string().min(1),
+        scriptContent: z.object({
+          hook: z.string(),
+          body: z.string(),
+          cta: z.string(),
+        }).optional(),
       }))
       .mutation(async ({ input }) => {
+        // 1. Save raw feedback to DB
         await saveFeedback({
           scriptId: input.scriptId,
           scriptName: input.scriptName,
           feedbackText: input.feedbackText,
         });
-        // Append to KB
-        appendFeedbackToKB(input.scriptName, input.feedbackText);
-        return { success: true };
+        // 2. AI converts feedback into a universal KB rule
+        const kbRule = await convertFeedbackToKBRule(input.scriptName, input.feedbackText);
+        // 3. Append both raw feedback and the derived rule to the KB file
+        appendFeedbackToKB(input.scriptName, input.feedbackText, kbRule);
+        return { success: true, kbRule };
       }),
 
     getForScript: protectedProcedure
