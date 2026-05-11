@@ -72,6 +72,10 @@ vi.mock("./db", () => ({
   getFeedbackForScript: vi.fn().mockResolvedValue([]),
   saveKbDocument: vi.fn().mockResolvedValue(undefined),
   getKbDocuments: vi.fn().mockResolvedValue([]),
+  // Lawsuit updates
+  getLawsuitUpdates: vi.fn().mockResolvedValue([]),
+  getLastScrapeTime: vi.fn().mockResolvedValue(null),
+  saveLawsuitUpdates: vi.fn().mockResolvedValue(undefined),
   // Research docs
   listResearchDocs: vi.fn().mockResolvedValue([
     { id: 1, lawsuitKey: "Hernia Mesh", title: "Hernia Mesh Brief", summary: "Test summary", updatedAt: new Date() },
@@ -80,6 +84,21 @@ vi.mock("./db", () => ({
   getResearchDocById: vi.fn().mockResolvedValue({
     id: 1, lawsuitKey: "Hernia Mesh", title: "Hernia Mesh Brief", content: "# Research\n\nTest content.", summary: "Test summary", createdAt: new Date(), updatedAt: new Date(),
   }),
+}));
+
+// ─── Mock lawsuitScraper — prevent real HTTP calls ──────────────────────────
+vi.mock("./lawsuitScraper", () => ({
+  scrapeAllLawsuits: vi.fn().mockResolvedValue({
+    "Hernia Mesh": [{ title: "Hernia Mesh Update", url: "https://example.com/hm", excerpt: "Test excerpt", publishedAt: "May 2026" }],
+    "PowerPort": [],
+    "Depo-Provera": [],
+    "Social Media Addiction": [],
+    "NY Juvenile Detention": [],
+    "Illinois Juvenile Detention": [],
+  }),
+  scrapeUpdatesForLawsuit: vi.fn().mockResolvedValue([
+    { title: "Test Article", url: "https://example.com/article", excerpt: "Test excerpt", publishedAt: "May 2026" },
+  ]),
 }));
 
 // ─── Mock fs ──────────────────────────────────────────────────────────────────
@@ -445,5 +464,70 @@ describe("scripts.generate — research injection", () => {
     });
     expect(result.scripts.length).toBeGreaterThan(0);
     expect(result.sessionId).toBe(42);
+  });
+});
+
+// ─── Updates router tests ────────────────────────────────────────────────────
+
+describe("updates.getAll", () => {
+  it("returns updates and lastScrape when no filter applied", async () => {
+    const { getLawsuitUpdates, getLastScrapeTime } = await import("./db");
+    (getLawsuitUpdates as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: 1,
+        lawsuitKey: "Hernia Mesh",
+        title: "New Hernia Mesh Settlement",
+        summary: "Courts awarded compensation to victims.",
+        url: "https://www.lawsuit-information-center.com/hernia-mesh-settlement",
+        publishedAt: "May 2026",
+        scrapedAt: new Date(),
+      },
+    ]);
+    (getLastScrapeTime as ReturnType<typeof vi.fn>).mockResolvedValueOnce(new Date());
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.updates.getAll({});
+    expect(Array.isArray(result.updates)).toBe(true);
+    expect(result.updates.length).toBeGreaterThan(0);
+    expect(result.updates[0]).toHaveProperty("lawsuitKey");
+    expect(result.updates[0]).toHaveProperty("title");
+    expect(result.updates[0]).toHaveProperty("url");
+  });
+
+  it("filters updates by lawsuitKey when provided", async () => {
+    const { getLawsuitUpdates, getLastScrapeTime } = await import("./db");
+    (getLawsuitUpdates as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: 2,
+        lawsuitKey: "Depo-Provera",
+        title: "Depo-Provera Lawsuit Update",
+        summary: "New filings in 2026.",
+        url: "https://www.lawsuit-information-center.com/depo-provera",
+        publishedAt: "April 2026",
+        scrapedAt: new Date(),
+      },
+    ]);
+    (getLastScrapeTime as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.updates.getAll({ lawsuitKey: "Depo-Provera" });
+    expect(result.updates.length).toBeGreaterThan(0);
+    expect(result.updates[0].lawsuitKey).toBe("Depo-Provera");
+  });
+});
+
+describe("meta — grouped lawsuit dropdown", () => {
+  it("returns researchBackedLawsuits as a separate array", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.meta();
+    expect(Array.isArray(result.researchBackedLawsuits)).toBe(true);
+    expect(result.researchBackedLawsuits).toContain("Hernia Mesh");
+    expect(result.researchBackedLawsuits).toContain("Depo-Provera");
+    expect(result.researchBackedLawsuits).toContain("PowerPort");
+    expect(result.researchBackedLawsuits).toContain("Social Media Addiction");
+    expect(result.researchBackedLawsuits).toContain("NY Juvenile Detention");
+    expect(result.researchBackedLawsuits).toContain("Illinois Juvenile Detention");
+    // All research-backed lawsuits should also appear in the main lawsuits list
+    for (const l of result.researchBackedLawsuits) {
+      expect(result.lawsuits).toContain(l);
+    }
   });
 });

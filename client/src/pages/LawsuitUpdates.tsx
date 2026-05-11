@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import DashboardLayout from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -62,8 +61,7 @@ export default function LawsuitUpdates() {
   const displayLawsuits = selectedLawsuit ? [selectedLawsuit] : RESEARCH_BACKED;
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -234,7 +232,6 @@ export default function LawsuitUpdates() {
             })}
           </div>
         )}
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

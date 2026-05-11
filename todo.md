@@ -72,10 +72,10 @@
 - [x] Update tests for complianceLevel parameter
 
 ## Phase 10: Lawsuit Dropdown Restructure + News Scraper
-- [ ] Restructure lawsuit dropdown: research-backed lawsuits as primary group (labelled), others as secondary group
-- [ ] Add lawsuit_updates DB table (id, lawsuit_key, title, summary, url, published_at, scraped_at)
-- [ ] Build scraper backend: fetch and parse lawsuit-information-center.com articles per lawsuit
-- [ ] tRPC mutation: scrapeUpdates (manual trigger) + query: getUpdates (per lawsuit)
-- [ ] Build Lawsuit Updates page with per-lawsuit news cards and manual Refresh button
-- [ ] Add Lawsuit Updates to sidebar nav
-- [ ] Update tests
+- [x] Restructure lawsuit dropdown: research-backed lawsuits as primary group (labelled), others as secondary group
+- [x] Add lawsuit_updates DB table (id, lawsuit_key, title, summary, url, published_at, scraped_at)
+- [x] Build scraper backend: fetch and parse lawsuit-information-center.com articles per lawsuit
+- [x] tRPC mutation: scrapeUpdates (manual trigger) + query: getUpdates (per lawsuit)
+- [x] Build Lawsuit Updates page with per-lawsuit news cards and manual Refresh button
+- [x] Add Lawsuit Updates to sidebar nav
+- [x] Update tests (22/22 passing — scraper mocked in existing test suite)
