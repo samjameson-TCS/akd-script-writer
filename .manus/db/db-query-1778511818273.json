@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `lawsuit_updates` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`lawsuitKey` varchar(64) NOT NULL,\n\t`title` varchar(512) NOT NULL,\n\t`summary` text NOT NULL,\n\t`url` varchar(1024) NOT NULL,\n\t`publishedAt` varchar(64),\n\t`scrapedAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `lawsuit_updates_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PSucjba86eoTqFC.f7a34347a3f5 --database QnFo973ajezBeVYDwDUoyf --execute CREATE TABLE `lawsuit_updates` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`lawsuitKey` varchar(64) NOT NULL,\n\t`title` varchar(512) NOT NULL,\n\t`summary` text NOT NULL,\n\t`url` varchar(1024) NOT NULL,\n\t`publishedAt` varchar(64),\n\t`scrapedAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `lawsuit_updates_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1933
+}

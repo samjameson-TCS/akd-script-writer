@@ -1,6 +1,6 @@
 import { desc, eq, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, generatedScripts, feedbackEntries, kbDocuments, researchDocs, InsertGeneratedScript, InsertFeedbackEntry, InsertKbDocument } from "../drizzle/schema";
+import { InsertUser, users, generatedScripts, feedbackEntries, kbDocuments, researchDocs, lawsuitUpdates, InsertGeneratedScript, InsertFeedbackEntry, InsertKbDocument } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -138,4 +138,44 @@ export async function getResearchDocById(id: number) {
   if (!db) throw new Error("Database not available");
   const result = await db.select().from(researchDocs).where(eq(researchDocs.id, id)).limit(1);
   return result[0] ?? null;
+}
+
+// ─── Lawsuit Updates (Scraper) ──────────────────────────────────────────────────────────────────────────────
+
+export async function saveLawsuitUpdates(lawsuitKey: string, articles: { title: string; url: string; summary: string; publishedAt: string | null }[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Delete existing updates for this lawsuit key before inserting fresh ones
+  const { sql: sqlCore } = await import("drizzle-orm");
+  await db.execute(sqlCore`DELETE FROM lawsuit_updates WHERE lawsuitKey = ${lawsuitKey}`);
+  if (articles.length === 0) return;
+  for (const article of articles) {
+    await db.insert(lawsuitUpdates).values({
+      lawsuitKey,
+      title: article.title,
+      summary: article.summary,
+      url: article.url,
+      publishedAt: article.publishedAt ?? undefined,
+    });
+  }
+}
+
+export async function getLawsuitUpdates(lawsuitKey?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  let query = db.select().from(lawsuitUpdates).orderBy(desc(lawsuitUpdates.scrapedAt)).$dynamic();
+  if (lawsuitKey) {
+    query = query.where(eq(lawsuitUpdates.lawsuitKey, lawsuitKey));
+  }
+  return query.limit(50);
+}
+
+export async function getLastScrapeTime(): Promise<Date | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select({ scrapedAt: lawsuitUpdates.scrapedAt })
+    .from(lawsuitUpdates)
+    .orderBy(desc(lawsuitUpdates.scrapedAt))
+    .limit(1);
+  return result[0]?.scrapedAt ?? null;
 }

@@ -4,7 +4,8 @@ import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { z } from "zod";
-import { saveGeneratedScripts, getScriptHistory, getScriptById, saveFeedback, getFeedbackForScript, saveKbDocument, getKbDocuments, listResearchDocs, getResearchDocByKey, getResearchDocById } from "./db";
+import { saveGeneratedScripts, getScriptHistory, getScriptById, saveFeedback, getFeedbackForScript, saveKbDocument, getKbDocuments, listResearchDocs, getResearchDocByKey, getResearchDocById, saveLawsuitUpdates, getLawsuitUpdates, getLastScrapeTime } from "./db";
+import { scrapeAllLawsuits, scrapeUpdatesForLawsuit } from "./lawsuitScraper";
 import fs from "fs";
 import path from "path";
 import { TRPCError } from "@trpc/server";
@@ -118,6 +119,15 @@ function buildScriptName(
 
 // ─── Lawsuits & options ───────────────────────────────────────────────────────
 
+const RESEARCH_BACKED_LAWSUITS = [
+  "Hernia Mesh",
+  "PowerPort",
+  "Depo-Provera",
+  "Social Media Addiction",
+  "NY Juvenile Detention",
+  "Illinois Juvenile Detention",
+];
+
 const LAWSUITS = Object.keys(LAWSUIT_CODES);
 const HOOK_CATEGORIES = [
   "Symptom",       // 🚨 Symptom/Diagnosis First — lead with the medical condition
@@ -149,6 +159,8 @@ export const appRouter = router({
   // ─── Meta ────────────────────────────────────────────────────────────────
   meta: publicProcedure.query(() => ({
     lawsuits: LAWSUITS,
+    researchBackedLawsuits: RESEARCH_BACKED_LAWSUITS,
+    otherLawsuits: LAWSUITS.filter(l => !RESEARCH_BACKED_LAWSUITS.includes(l)),
     hookCategories: HOOK_CATEGORIES,
     avatars: AVATARS,
   })),
@@ -541,6 +553,80 @@ Return a single script object with: hookCategory, hookAngle (most impactful word
         const doc = await getResearchDocById(input.id);
         if (!doc) throw new TRPCError({ code: "NOT_FOUND" });
         return doc;
+      }),
+  }),
+
+  // ─── Lawsuit Updates (Scraper) ──────────────────────────────────────────────────────────────────────────────
+  updates: router({
+    // Manual trigger: scrape all 6 research-backed lawsuits
+    scrapeAll: protectedProcedure.mutation(async () => {
+      const allArticles = await scrapeAllLawsuits();
+      const RESEARCH_BACKED = ["Hernia Mesh", "PowerPort", "Depo-Provera", "Social Media Addiction", "NY Juvenile Detention", "Illinois Juvenile Detention"];
+      let totalSaved = 0;
+
+      for (const lawsuitKey of RESEARCH_BACKED) {
+        const articles = allArticles[lawsuitKey] ?? [];
+        // Use AI to generate a concise summary for each article
+        const articlesWithSummary = await Promise.all(
+          articles.map(async (article) => {
+            let summary = article.excerpt;
+            if (article.excerpt) {
+              try {
+                const resp = await invokeLLM({
+                  messages: [
+                    { role: "system", content: "Summarize the following legal news excerpt in 2-3 sentences. Be factual and concise. Focus on what's new or changed." },
+                    { role: "user", content: `Title: ${article.title}\n\n${article.excerpt}` },
+                  ],
+                });
+                const content = resp.choices[0]?.message?.content;
+                if (typeof content === "string") summary = content.trim();
+              } catch { /* keep raw excerpt */ }
+            }
+            return { ...article, summary };
+          })
+        );
+        await saveLawsuitUpdates(lawsuitKey, articlesWithSummary);
+        totalSaved += articlesWithSummary.length;
+      }
+
+      const lastScrape = await getLastScrapeTime();
+      return { success: true, totalSaved, lastScrape };
+    }),
+
+    // Scrape a single lawsuit
+    scrapeOne: protectedProcedure
+      .input(z.object({ lawsuitKey: z.string() }))
+      .mutation(async ({ input }) => {
+        const articles = await scrapeUpdatesForLawsuit(input.lawsuitKey);
+        const articlesWithSummary = await Promise.all(
+          articles.map(async (article) => {
+            let summary = article.excerpt;
+            if (article.excerpt) {
+              try {
+                const resp = await invokeLLM({
+                  messages: [
+                    { role: "system", content: "Summarize the following legal news excerpt in 2-3 sentences. Be factual and concise. Focus on what's new or changed." },
+                    { role: "user", content: `Title: ${article.title}\n\n${article.excerpt}` },
+                  ],
+                });
+                const content = resp.choices[0]?.message?.content;
+                if (typeof content === "string") summary = content.trim();
+              } catch { /* keep raw excerpt */ }
+            }
+            return { ...article, summary };
+          })
+        );
+        await saveLawsuitUpdates(input.lawsuitKey, articlesWithSummary);
+        return { success: true, count: articlesWithSummary.length };
+      }),
+
+    // Get stored updates (optionally filtered by lawsuit)
+    getAll: protectedProcedure
+      .input(z.object({ lawsuitKey: z.string().optional() }))
+      .query(async ({ input }) => {
+        const updates = await getLawsuitUpdates(input.lawsuitKey);
+        const lastScrape = await getLastScrapeTime();
+        return { updates, lastScrape };
       }),
   }),
 

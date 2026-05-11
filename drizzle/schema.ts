@@ -63,3 +63,16 @@ export const researchDocs = mysqlTable("research_docs", {
 
 export type ResearchDoc = typeof researchDocs.$inferSelect;
 export type InsertResearchDoc = typeof researchDocs.$inferInsert;
+
+export const lawsuitUpdates = mysqlTable("lawsuit_updates", {
+  id: int("id").autoincrement().primaryKey(),
+  lawsuitKey: varchar("lawsuitKey", { length: 64 }).notNull(), // e.g. "Hernia Mesh"
+  title: varchar("title", { length: 512 }).notNull(),
+  summary: text("summary").notNull(), // AI-generated 2-3 sentence summary
+  url: varchar("url", { length: 1024 }).notNull(),
+  publishedAt: varchar("publishedAt", { length: 64 }), // date string from site
+  scrapedAt: timestamp("scrapedAt").defaultNow().notNull(),
+});
+
+export type LawsuitUpdate = typeof lawsuitUpdates.$inferSelect;
+export type InsertLawsuitUpdate = typeof lawsuitUpdates.$inferInsert;

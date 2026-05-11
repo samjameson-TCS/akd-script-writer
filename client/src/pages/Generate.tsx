@@ -4,7 +4,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
@@ -382,7 +382,28 @@ export default function Generate() {
                   <SelectValue placeholder="Select lawsuit..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {meta?.lawsuits.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                  <SelectGroup>
+                    <SelectLabel className="text-xs text-primary font-semibold uppercase tracking-wider px-2 py-1.5">
+                      📚 Research-Backed
+                    </SelectLabel>
+                    {meta?.researchBackedLawsuits.map(l => (
+                      <SelectItem key={l} value={l}>
+                        <span className="flex items-center gap-1.5">
+                          <span className="h-1.5 w-1.5 rounded-full bg-primary inline-block" />
+                          {l}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                  <SelectSeparator />
+                  <SelectGroup>
+                    <SelectLabel className="text-xs text-muted-foreground font-semibold uppercase tracking-wider px-2 py-1.5">
+                      Other Lawsuits
+                    </SelectLabel>
+                    {meta?.otherLawsuits.map(l => (
+                      <SelectItem key={l} value={l}>{l}</SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>

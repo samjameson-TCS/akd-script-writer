@@ -9,6 +9,7 @@ import Generate from "./pages/Generate";
 import History from "./pages/History";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import ResearchLibrary from "./pages/ResearchLibrary";
+import LawsuitUpdates from "./pages/LawsuitUpdates";
 function Router() {
   return (
     <Switch>
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/history" component={History} />
       <Route path="/knowledge-base" component={KnowledgeBase} />
       <Route path="/research" component={ResearchLibrary} />
+      <Route path="/updates" component={LawsuitUpdates} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

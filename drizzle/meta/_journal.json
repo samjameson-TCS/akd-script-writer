@@ -29,6 +29,13 @@
       "when": 1778510583287,
       "tag": "0003_mute_nomad",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1778511800371,
+      "tag": "0004_left_the_executioner",
+      "breakpoints": true
     }
   ]
 }
