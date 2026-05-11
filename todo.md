@@ -27,3 +27,11 @@
 - [x] Loading states, empty states, error handling
 - [x] Vitest tests for generate and feedback procedures (9/9 passing)
 - [x] Checkpoint + delivery
+
+## Phase 5: Bug Fixes (Session 2)
+- [x] Fix "No session ID" error — generate mutation now returns DB insertId as sessionId, wired to feedback save
+- [x] Make hookCategory nullable in DB schema (migration applied)
+- [x] Add "Never begin with Imagine" as hard compliance rule in KB (Section 7) and system prompt
+- [x] Add Platform selector to form (Meta / TikTok / YouTube / Other)
+- [x] Enforce Meta word count: 75–100 words max via system prompt when Meta is selected
+- [x] Update vitest tests: 12/12 passing (added sessionId, optional fields, platform tests)

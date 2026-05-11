@@ -65,9 +65,11 @@ function getLawsuitCode(lawsuit: string): string {
   return LAWSUIT_CODES[lawsuit] ?? lawsuit.substring(0, 3).toUpperCase();
 }
 
-function buildScriptName(lawsuit: string, hookCategory: string, hookAngle: string, scriptNumber: number, aggressiveScale: number): string {
+function buildScriptName(lawsuit: string, hookCategory: string | undefined, hookAngle: string | undefined, scriptNumber: number, aggressiveScale: number): string {
   const code = getLawsuitCode(lawsuit);
-  return `${code} ${scriptNumber} (${hookCategory}) (${hookAngle}) (Mo) (${aggressiveScale}-5)`;
+  const catPart = hookCategory ? ` (${hookCategory})` : "";
+  const anglePart = hookAngle ? ` (${hookAngle})` : "";
+  return `${code} ${scriptNumber}${catPart}${anglePart} (Mo) (${aggressiveScale}-5)`;
 }
 
 // ─── Lawsuits & options ───────────────────────────────────────────────────────
@@ -101,16 +103,23 @@ export const appRouter = router({
     generate: protectedProcedure
       .input(z.object({
         lawsuit: z.string(),
-        hookCategory: z.string(),
-        hookAngle: z.string(),
+        hookCategory: z.string().optional(),
+        hookAngle: z.string().optional(),
         aggressiveScale: z.number().min(1).max(5),
         avatar: z.string(),
+        platform: z.enum(["Meta", "TikTok", "YouTube", "Other"]).default("Other"),
         referenceScript: z.string().optional(),
         extraInstructions: z.string().optional(),
         scriptNumberStart: z.number().default(1),
       }))
       .mutation(async ({ input }) => {
         const kb = readKB();
+
+        const wordCountRule = input.platform === "Meta"
+          ? "Scripts for Meta MUST be 75–100 words maximum. Be ruthless — cut every unnecessary word."
+          : input.platform === "TikTok" || input.platform === "YouTube"
+          ? "Keep scripts 100–150 words."
+          : "Keep scripts 100–150 words.";
 
         const systemPrompt = `You are the AKD Media AI Script Writer. You have been trained on the following knowledge base. Read it completely before writing any script.
 
@@ -121,15 +130,17 @@ CRITICAL RULES:
 - Never use banned words from the compliance section
 - Match the aggressive scale exactly as requested
 - Write for the specified avatar
-- Keep scripts 100–150 words
+- ${wordCountRule}
 - Sound conversational and human — never robotic or formal
+- ABSOLUTE BAN: Never begin Hook A, Hook B, or any part of the script with the word "Imagine". This is non-negotiable. Find a different opening.
 - Return EXACTLY 3 scripts as a JSON array`;
 
         const userPrompt = `Generate 3 unique script iterations for the following parameters:
 
 Lawsuit: ${input.lawsuit}
-Hook Category: ${input.hookCategory}
-Hook Angle: ${input.hookAngle}
+Platform: ${input.platform}
+Hook Category: ${input.hookCategory ?? "(AI decides)"}
+Hook Angle: ${input.hookAngle ?? "(AI decides)"}
 Aggressive Scale: ${input.aggressiveScale}/5
 Target Avatar: ${input.avatar}
 ${input.referenceScript ? `Reference Script (iterate from this):\n${input.referenceScript}` : ""}
@@ -202,10 +213,10 @@ Example format:
           cta: s.cta,
         }));
 
-        // Save to DB
-        await saveGeneratedScripts({
+        // Save to DB — capture insertId to return as sessionId
+        const sessionId = await saveGeneratedScripts({
           lawsuit: input.lawsuit,
-          hookCategory: input.hookCategory,
+          hookCategory: input.hookCategory ?? null,
           aggressiveScale: input.aggressiveScale,
           avatar: input.avatar,
           referenceScript: input.referenceScript ?? null,
@@ -213,7 +224,7 @@ Example format:
           scripts: namedScripts,
         });
 
-        return { scripts: namedScripts };
+        return { scripts: namedScripts, sessionId };
       }),
 
     history: protectedProcedure

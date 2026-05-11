@@ -41,7 +41,7 @@ vi.mock("./_core/llm", () => ({
 
 // ─── Mock DB helpers ──────────────────────────────────────────────────────────
 vi.mock("./db", () => ({
-  saveGeneratedScripts: vi.fn().mockResolvedValue(undefined),
+  saveGeneratedScripts: vi.fn().mockResolvedValue(42), // returns insertId
   getScriptHistory: vi.fn().mockResolvedValue([]),
   getScriptById: vi.fn().mockResolvedValue(null),
   saveFeedback: vi.fn().mockResolvedValue(undefined),
@@ -107,12 +107,38 @@ describe("scripts.generate", () => {
     });
 
     expect(result.scripts).toHaveLength(3);
-    // Check naming convention: CODE (hookCategory) (hookAngle) (Mo) (scale-5)
+    // Check naming convention: CODE [num] (hookCategory) (hookAngle) (Mo) (scale-5)
     expect(result.scripts[0]?.name).toMatch(/^HM \d+ \(.+\) \(.+\) \(Mo\) \(\d-5\)$/);
     expect(result.scripts[0]?.hookA).toBeTruthy();
     expect(result.scripts[0]?.hookB).toBeTruthy();
     expect(result.scripts[0]?.body).toBeTruthy();
     expect(result.scripts[0]?.cta).toBeTruthy();
+  });
+
+  it("returns a sessionId from the DB insert", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.scripts.generate({
+      lawsuit: "Hernia Mesh",
+      hookCategory: "Pattern",
+      aggressiveScale: 1,
+      avatar: "Patients",
+      scriptNumberStart: 1,
+    });
+    expect(typeof result.sessionId).toBe("number");
+    expect(result.sessionId).toBe(42);
+  });
+
+  it("works with optional hookCategory and hookAngle omitted", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.scripts.generate({
+      lawsuit: "Hernia Mesh",
+      aggressiveScale: 2,
+      avatar: "Patients",
+      scriptNumberStart: 1,
+    });
+    expect(result.scripts).toHaveLength(3);
+    // Name should still be valid without category/angle parts
+    expect(result.scripts[0]?.name).toMatch(/^HM \d+/);
   });
 
   it("uses correct lawsuit code in script name", async () => {
@@ -126,6 +152,18 @@ describe("scripts.generate", () => {
       scriptNumberStart: 1,
     });
     expect(result.scripts[0]?.name).toMatch(/^SAB /);
+  });
+
+  it("accepts Meta platform parameter", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.scripts.generate({
+      lawsuit: "Hernia Mesh",
+      aggressiveScale: 1,
+      avatar: "Patients",
+      platform: "Meta",
+      scriptNumberStart: 1,
+    });
+    expect(result.scripts).toHaveLength(3);
   });
 });
 

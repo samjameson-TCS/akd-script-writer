@@ -1,0 +1,1 @@
+ALTER TABLE `generated_scripts` MODIFY COLUMN `hookCategory` varchar(64);

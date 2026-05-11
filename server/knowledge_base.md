@@ -218,6 +218,16 @@ These rules apply to ALL scripts regardless of aggressive scale. Violations can 
 10. **No use of these specific words:**
     - recall, payout, owed, significant (when describing compensation), serious (when describing compensation), cash (when describing compensation), check (when describing compensation), reward, jackpot
 
+11. **NEVER begin a script or Hook A or Hook B with the word "Imagine".**
+    - ❌ "Imagine waking up one day and..."
+    - ❌ "Imagine finding out that..."
+    - This is a hard ban. No exceptions. Use a different opening that creates the same emotional pull.
+
+### PLATFORM-SPECIFIC LENGTH RULES:
+- **Meta (Facebook/Instagram):** Maximum 75–100 words per script. Meta's feed moves fast — shorter is always better. Cut the body ruthlessly. Every word must earn its place.
+- **TikTok / YouTube Shorts:** 100–150 words is acceptable. Slightly more room for storytelling.
+- **Default (no platform specified):** 100–150 words.
+
 ### APPROVED ALTERNATIVES:
 - "See if you qualify for **potential** compensation."
 - "You **may** have a legal claim."

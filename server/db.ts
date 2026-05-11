@@ -52,11 +52,13 @@ export async function getUserByOpenId(openId: string) {
 
 // ─── Scripts ─────────────────────────────────────────────────────────────────
 
-export async function saveGeneratedScripts(data: InsertGeneratedScript) {
+export async function saveGeneratedScripts(data: InsertGeneratedScript): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  // drizzle-orm/mysql2 returns [ResultSetHeader, FieldPacket[]] for insert
   const result = await db.insert(generatedScripts).values(data);
-  return result;
+  const header = result as unknown as { insertId?: number };
+  return header.insertId ?? 0;
 }
 
 export async function getScriptHistory(filters?: { lawsuit?: string; search?: string }) {

@@ -18,7 +18,7 @@ export type InsertUser = typeof users.$inferInsert;
 export const generatedScripts = mysqlTable("generated_scripts", {
   id: int("id").autoincrement().primaryKey(),
   lawsuit: varchar("lawsuit", { length: 64 }).notNull(),
-  hookCategory: varchar("hookCategory", { length: 64 }).notNull(),
+  hookCategory: varchar("hookCategory", { length: 64 }),
   aggressiveScale: int("aggressiveScale").notNull(),
   avatar: varchar("avatar", { length: 64 }).notNull(),
   referenceScript: text("referenceScript"),

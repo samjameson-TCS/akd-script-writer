@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -149,10 +150,11 @@ function ScriptCard({ script, sessionId, index }: ScriptCardProps) {
 
 export default function Generate() {
   const [lawsuit, setLawsuit] = useState("");
-  const [hookCategory, setHookCategory] = useState("");
+  const [hookCategories, setHookCategories] = useState<string[]>([]);
   const [hookAngle, setHookAngle] = useState("");
   const [aggressiveScale, setAggressiveScale] = useState(2);
   const [avatar, setAvatar] = useState("");
+  const [platform, setPlatform] = useState<"Meta" | "TikTok" | "YouTube" | "Other">("Other");
   const [referenceScript, setReferenceScript] = useState("");
   const [extraInstructions, setExtraInstructions] = useState("");
   const [scriptNumberStart, setScriptNumberStart] = useState(1);
@@ -162,7 +164,7 @@ export default function Generate() {
 
   const generate = trpc.scripts.generate.useMutation({
     onSuccess: (data) => {
-      setResults({ scripts: data.scripts, sessionId: null });
+      setResults({ scripts: data.scripts, sessionId: data.sessionId ?? null });
       toast.success("3 scripts generated");
       window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
     },
@@ -170,11 +172,11 @@ export default function Generate() {
   });
 
   const handleGenerate = () => {
-    if (!lawsuit || !hookCategory || !hookAngle || !avatar) {
-      toast.error("Please fill in all required fields");
+    if (!lawsuit || !avatar) {
+      toast.error("Please select a lawsuit and avatar");
       return;
     }
-    generate.mutate({ lawsuit, hookCategory, hookAngle, aggressiveScale, avatar, referenceScript: referenceScript || undefined, extraInstructions: extraInstructions || undefined, scriptNumberStart });
+    generate.mutate({ lawsuit, hookCategory: hookCategories.join(", ") || undefined, hookAngle: hookAngle || undefined, aggressiveScale, avatar, platform, referenceScript: referenceScript || undefined, extraInstructions: extraInstructions || undefined, scriptNumberStart });
   };
 
   const aggressiveLabels = ["", "1 — Very Safe", "2 — Safe", "3 — Moderate", "4 — Aggressive", "5 — Very Aggressive"];
@@ -210,25 +212,45 @@ export default function Generate() {
               </Select>
             </div>
 
-            {/* Hook Category */}
+            {/* Hook Category — optional multi-select */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Hook Category *</Label>
-              <Select value={hookCategory} onValueChange={setHookCategory}>
+              <Label className="text-xs font-medium text-foreground">Hook Category <span className="text-muted-foreground">(optional — AI decides if empty)</span></Label>
+              <Select
+                onValueChange={(val) => {
+                  if (!hookCategories.includes(val)) {
+                    setHookCategories(prev => [...prev, val]);
+                  }
+                }}
+              >
                 <SelectTrigger className="h-9 text-sm bg-muted/30 border-border/60">
-                  <SelectValue placeholder="Select hook category..." />
+                  <SelectValue placeholder="Add hook category..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {meta?.hookCategories.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                  {meta?.hookCategories.map(h => (
+                    <SelectItem key={h} value={h} disabled={hookCategories.includes(h)}>{h}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {hookCategories.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {hookCategories.map(cat => (
+                    <span key={cat} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary border border-primary/20">
+                      {cat}
+                      <button onClick={() => setHookCategories(prev => prev.filter(c => c !== cat))} className="hover:text-destructive transition-colors">
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Hook Angle */}
+            {/* Hook Angle — optional */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium text-foreground">Hook Angle *</Label>
+              <Label className="text-xs font-medium text-foreground">Hook Angle <span className="text-muted-foreground">(optional — AI decides if empty)</span></Label>
               <input
                 type="text"
-                placeholder="e.g. Can't Believe, Break It Down..."
+                placeholder="e.g. Can't Believe, Break It Down... or leave blank"
                 value={hookAngle}
                 onChange={(e) => setHookAngle(e.target.value)}
                 className="w-full h-9 px-3 text-sm rounded-md border border-border/60 bg-muted/30 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
@@ -244,6 +266,22 @@ export default function Generate() {
                 </SelectTrigger>
                 <SelectContent>
                   {meta?.avatars.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Platform */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-foreground">Platform <span className="text-muted-foreground">(affects word count)</span></Label>
+              <Select value={platform} onValueChange={(v) => setPlatform(v as typeof platform)}>
+                <SelectTrigger className="h-9 text-sm bg-muted/30 border-border/60">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Meta">Meta (Facebook / Instagram) — 75–100 words</SelectItem>
+                  <SelectItem value="TikTok">TikTok — 100–150 words</SelectItem>
+                  <SelectItem value="YouTube">YouTube Shorts — 100–150 words</SelectItem>
+                  <SelectItem value="Other">Other / Unspecified — 100–150 words</SelectItem>
                 </SelectContent>
               </Select>
             </div>
