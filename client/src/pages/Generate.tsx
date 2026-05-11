@@ -29,6 +29,7 @@ type GenerationParams = {
   aggressiveScale: number;
   avatar: string;
   platform: "Meta" | "TikTok" | "YouTube" | "Other";
+  complianceLevel: 1 | 2 | 3;
   scriptNumberStart: number;
   referenceScript?: string;
   extraInstructions?: string;
@@ -107,6 +108,7 @@ function ScriptCard({ script, sessionId, index, isPairStart, generationParams, o
       aggressiveScale: generationParams.aggressiveScale,
       avatar: generationParams.avatar,
       platform: generationParams.platform,
+      complianceLevel: generationParams.complianceLevel,
       scriptNumber: scriptNum,
       existingScript: script,
       feedbackText: feedbackText.trim() || undefined,
@@ -279,6 +281,7 @@ export default function Generate() {
   const [aggressiveScale, setAggressiveScale] = useState(2);
   const [avatar, setAvatar] = useState("");
   const [platform, setPlatform] = useState<"Meta" | "TikTok" | "YouTube" | "Other">("Other");
+  const [complianceLevel, setComplianceLevel] = useState<1 | 2 | 3>(3);
   const [referenceScript, setReferenceScript] = useState("");
   const [extraInstructions, setExtraInstructions] = useState("");
   const [scriptNumberStart, setScriptNumberStart] = useState(1);
@@ -307,6 +310,7 @@ export default function Generate() {
       aggressiveScale,
       avatar,
       platform,
+      complianceLevel,
       referenceScript: referenceScript || undefined,
       extraInstructions: extraInstructions || undefined,
       scriptNumberStart,
@@ -346,6 +350,7 @@ export default function Generate() {
     aggressiveScale,
     avatar,
     platform,
+    complianceLevel,
     scriptNumberStart,
     referenceScript: referenceScript || undefined,
     extraInstructions: extraInstructions || undefined,
@@ -444,6 +449,32 @@ export default function Generate() {
                   <SelectItem value="Other">Other / Unspecified — 100–150 words</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Compliance Level */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-foreground">Compliance Level *</Label>
+              <Select value={String(complianceLevel)} onValueChange={(v) => setComplianceLevel(Number(v) as 1 | 2 | 3)}>
+                <SelectTrigger className="h-9 text-sm bg-muted/30 border-border/60">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">
+                    <span className="font-medium">Level 1</span> — Broughton Partners (Very Strict)
+                  </SelectItem>
+                  <SelectItem value="2">
+                    <span className="font-medium">Level 2</span> — Pulaski / Aggregators + Disclaimer
+                  </SelectItem>
+                  <SelectItem value="3">
+                    <span className="font-medium">Level 3</span> — LCA / Aggregators (More Freedom)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground/70">
+                {complianceLevel === 1 && "Very strict. No guarantees, no financial amounts, no accusatory language."}
+                {complianceLevel === 2 && "Moderate. No direct promises, no POV talking, no inmate solicitation."}
+                {complianceLevel === 3 && "Most freedom. Bold, direct, emotionally charged. Full aggressive scale allowed."}
+              </p>
             </div>
 
             {/* Aggressive Scale */}

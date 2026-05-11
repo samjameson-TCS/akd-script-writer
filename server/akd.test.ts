@@ -224,9 +224,24 @@ describe("scripts.generate — pair-based structure", () => {
       aggressiveScale: 1,
       avatar: "Patients",
       platform: "Meta",
+      complianceLevel: 2,
       scriptNumberStart: 1,
     });
     expect(result.scripts.length).toBeGreaterThan(0);
+  });
+
+  it("accepts complianceLevel 1, 2, and 3", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    for (const level of [1, 2, 3] as const) {
+      const result = await caller.scripts.generate({
+        lawsuit: "Hernia Mesh",
+        aggressiveScale: 2,
+        avatar: "Patients",
+        complianceLevel: level,
+        scriptNumberStart: 1,
+      });
+      expect(result.scripts.length).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -338,6 +353,31 @@ describe("scripts.regenerateOne", () => {
     expect(result.script.pairIndex).toBe(1);
     expect(result.script.variantIndex).toBe(1);
   });
+
+  it("accepts complianceLevel 1, 2, and 3 for regeneration", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    for (const level of [1, 2, 3] as const) {
+      const result = await caller.scripts.regenerateOne({
+        lawsuit: "Hernia Mesh",
+        aggressiveScale: 2,
+        avatar: "Patients",
+        platform: "Other",
+        complianceLevel: level,
+        scriptNumber: 1,
+        existingScript: {
+          name: "HM 1 (Curiosity) (hid) (Mo) (2-5)",
+          hook: "They hid this from you.",
+          hookAngle: "hid",
+          body: "Body text.",
+          cta: "Check eligibility.",
+          pairIndex: 0,
+          variantIndex: 0,
+        },
+      });
+      expect(result.script).toBeDefined();
+      expect(typeof result.script.hook).toBe("string");
+    }
+  });
 });
 
 describe("auth.logout", () => {
@@ -398,8 +438,9 @@ describe("scripts.generate — research injection", () => {
     const caller = appRouter.createCaller(createAuthContext());
     const result = await caller.scripts.generate({
       lawsuit: "Hernia Mesh",
-      aggressiveScale: 2,
+      aggressiveScale: 1,
       avatar: "Patients",
+      complianceLevel: 1,
       scriptNumberStart: 1,
     });
     expect(result.scripts.length).toBeGreaterThan(0);

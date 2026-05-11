@@ -63,3 +63,10 @@
 - [x] Wire AI generate mutation to inject relevant research doc into system prompt when lawsuit matches
 - [x] Wire AI regenerateOne to also use research doc
 - [x] Update tests for research procedures
+
+## Phase 9: Compliance Levels (1-3)
+- [x] Write compliance_levels.ts with full rule sets for all 3 levels
+- [x] Add complianceLevel to generate and regenerateOne input schema
+- [x] Inject level-specific rules into system prompt for both mutations
+- [x] Add Compliance Level selector to Generate form UI (prominent, with label and description)
+- [x] Update tests for complianceLevel parameter

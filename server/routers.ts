@@ -8,6 +8,7 @@ import { saveGeneratedScripts, getScriptHistory, getScriptById, saveFeedback, ge
 import fs from "fs";
 import path from "path";
 import { TRPCError } from "@trpc/server";
+import { getComplianceRules, COMPLIANCE_LEVEL_LABELS, COMPLIANCE_LEVEL_DESCRIPTIONS, type ComplianceLevel } from "./compliance_levels";
 
 // ─── KB helpers ──────────────────────────────────────────────────────────────
 
@@ -161,6 +162,7 @@ export const appRouter = router({
         aggressiveScale: z.number().min(1).max(5),
         avatar: z.string(),
         platform: z.enum(["Meta", "TikTok", "YouTube", "Other"]).default("Other"),
+        complianceLevel: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(3),
         referenceScript: z.string().optional(),
         extraInstructions: z.string().optional(),
         scriptNumberStart: z.number().default(1),
@@ -177,21 +179,24 @@ export const appRouter = router({
           : "";
 
         const wordCountRule = input.platform === "Meta"
-          ? "Scripts for Meta MUST be 75–100 words maximum. Be ruthless — cut every unnecessary word."
-          : "Keep scripts 100–150 words.";
+          ? "Scripts for Meta MUST be 75\u2013100 words maximum. Be ruthless \u2014 cut every unnecessary word."
+          : "Keep scripts 100\u2013150 words.";
+
+        const complianceRules = getComplianceRules(input.complianceLevel as ComplianceLevel);
 
         const systemPrompt = `You are the AKD Media AI Script Writer. You have been trained on the following knowledge base. Read it completely before writing any script.
 
 ${kb}${researchSection}
 
+${complianceRules}
+
 CRITICAL RULES:
 - Each generation produces PAIRS of scripts. Each pair shares the same body and CTA, but has TWO different hook lines with different hook angles.
-- The hook angle is the single most impactful word or short phrase from the hook — used for naming and data analysis.
-- Never use banned words from the compliance section
-- Match the aggressive scale exactly as requested
+- The hook angle is the single most impactful word or short phrase from the hook \u2014 used for naming and data analysis.
+- Match the aggressive scale exactly as requested (unless compliance level caps it)
 - Write for the specified avatar
 - ${wordCountRule}
-- Sound conversational and human — never robotic or formal
+- Sound conversational and human \u2014 never robotic or formal
 - ABSOLUTE BAN: Never begin any hook with the word "Imagine". This is non-negotiable.
 - Return EXACTLY ${input.pairsCount} pairs as a JSON array`;
 
@@ -325,6 +330,7 @@ Return a JSON array of exactly ${input.pairsCount} pair objects.`;
         aggressiveScale: z.number().min(1).max(5),
         avatar: z.string(),
         platform: z.enum(["Meta", "TikTok", "YouTube", "Other"]).default("Other"),
+        complianceLevel: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(3),
         scriptNumber: z.number(),
         // The existing script being replaced
         existingScript: z.object({
@@ -353,15 +359,19 @@ Return a JSON array of exactly ${input.pairsCount} pair objects.`;
           : "";
 
         const wordCountRule = input.platform === "Meta"
-          ? "Scripts for Meta MUST be 75–100 words maximum. Be ruthless — cut every unnecessary word."
-          : "Keep scripts 100–150 words.";
+          ? "Scripts for Meta MUST be 75\u2013100 words maximum. Be ruthless \u2014 cut every unnecessary word."
+          : "Keep scripts 100\u2013150 words.";
+
+        const complianceRules = getComplianceRules(input.complianceLevel as ComplianceLevel);
 
         const systemPrompt = `You are the AKD Media AI Script Writer. You have been trained on the following knowledge base. Read it completely before writing.
 
 ${kb}${researchSection}
 
+${complianceRules}
+
 CRITICAL RULES:
-- Sound conversational and human — never robotic or formal
+- Sound conversational and human \u2014 never robotic or formal
 - ${wordCountRule}
 - ABSOLUTE BAN: Never begin any hook with the word "Imagine". This is non-negotiable.
 - Return a single script JSON object`;
