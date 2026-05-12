@@ -405,7 +405,7 @@ export default function Generate() {
   const [complianceLevel, setComplianceLevel] = useState<1 | 2 | 3>(3);
   const [referenceScript, setReferenceScript] = useState("");
   const [extraInstructions, setExtraInstructions] = useState("");
-  const [scriptNumberStart, setScriptNumberStart] = useState(1);
+  const [scriptNumberStart, setScriptNumberStart] = useState(300);
   const [pairsCount, setPairsCount] = useState(3);
   const [results, setResults] = useState<{ scripts: GeneratedScript[]; sessionId: number | null } | null>(null);
 

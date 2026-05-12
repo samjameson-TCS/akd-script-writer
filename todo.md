@@ -100,14 +100,14 @@
 
 ## Phase 13: Session Comment Accumulation + Global Promotion
 
-- [ ] DB schema: add `scope` column to feedback_entries (enum: 'session' | 'global', default 'session')
-- [ ] DB schema: add `script_comments` table (id, sessionId, scriptName, comment, createdAt) for per-script thread
-- [ ] tRPC: scriptComments.add — append a comment to a script's thread (stored by sessionId + scriptName)
-- [ ] tRPC: scriptComments.list — get all comments for a script (by sessionId + scriptName)
-- [ ] tRPC: scriptComments.promoteToGlobal — convert a session comment into a global KB rule
-- [ ] Backend: regenerateOne injects the full comment thread for that script into the system prompt (not just the latest comment)
-- [ ] Frontend: script cards show a scrollable comment thread (all past comments on that script)
-- [ ] Frontend: new comment input appends to the thread (no delete needed), thread is always visible
-- [ ] Frontend: Regenerate button uses the full thread automatically
-- [ ] Frontend: Dashboard save dialog shows "Promote to global KB?" checklist for session comments
-- [ ] Update tests for new procedures
+- [x] DB schema: add `scope` column to feedback_entries (enum: 'session' | 'global', default 'session')
+- [x] DB schema: add `script_comments` table (id, sessionId, scriptName, comment, promoted, createdAt) for per-script thread
+- [x] tRPC: scriptComments.add — append a comment to a script's thread (stored by sessionId + scriptName)
+- [x] tRPC: scriptComments.list — get all comments for a script (by sessionId + scriptName)
+- [x] tRPC: scriptComments.promote — convert a session comment into a global KB rule (AI categorises + appends to KB)
+- [x] Backend: regenerateOne injects the full comment thread for that script into the system prompt (not just the latest comment)
+- [x] Frontend: script cards show a scrollable comment thread (all past comments on that script)
+- [x] Frontend: new comment input appends to the thread (no delete needed), thread is always visible
+- [x] Frontend: Regenerate button uses the full thread automatically
+- [x] Frontend: Dashboard save dialog shows "Promote to global KB?" checklist for session comments
+- [x] Update tests for new procedures — 37/37 passing

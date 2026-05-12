@@ -167,7 +167,6 @@ function buildScriptName(
 ): string {
   const code = getLawsuitCode(lawsuit);
   const catPart = hookCategory ? ` (${hookCategory})` : "";
-  // hookAngle is always present per-script (AI assigns it)
   return `${code} ${scriptNumber}${catPart} (${hookAngle}) (Mo) (${aggressiveScale}-5)`;
 }
 
@@ -195,7 +194,18 @@ const HOOK_CATEGORIES = [
   "Question",      // ❓ Question Hook — opens with a direct question to the viewer
   "Authority",     // 🔍 Research/Authority — leads with science, data, or official findings
 ];
-const AVATARS = ["Parents (30-55)", "Young Adults (18-30)", "Patients", "Veterans", "General Public"];
+const AVATARS = [
+  "Parents (30-55)",
+  "Young Adults (18-30)",
+  "Patients",
+  "Survivors",
+  "Older Adults (55+)",
+  "Families",
+  "Teens (13-17)",
+  "Former Detainees",
+  "Veterans",
+  "General Public",
+];
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 
@@ -561,7 +571,7 @@ Return a single script object with: hookCategory, hookAngle (most impactful word
 
         const effectiveCategory = input.hookCategory ?? parsed.hookCategory;
         const newScript = {
-          name: buildScriptName(input.lawsuit, effectiveCategory, parsed.hookAngle, input.scriptNumber, input.aggressiveScale),
+          name: buildScriptName(input.lawsuit, effectiveCategory, parsed.hookAngle, input.scriptNumber ?? 1, input.aggressiveScale),
           hook: parsed.hookLine,
           hookAngle: parsed.hookAngle,
           body: parsed.body,
