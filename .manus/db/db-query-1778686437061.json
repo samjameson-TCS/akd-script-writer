@@ -1,0 +1,52 @@
+{
+  "query": "SELECT id, lawsuitKey, title, LENGTH(content) as content_length, updatedAt FROM research_docs ORDER BY lawsuitKey;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PSucjba86eoTqFC.f7a34347a3f5 --database QnFo973ajezBeVYDwDUoyf --execute SELECT id, lawsuitKey, title, LENGTH(content) as content_length, updatedAt FROM research_docs ORDER BY lawsuitKey;",
+  "rows": [
+    {
+      "id": "4",
+      "lawsuitKey": "Depo-Provera",
+      "title": "Depo-Provera Meningioma Lawsuit Marketing Brief",
+      "content_length": "35701",
+      "updatedAt": "2026-05-11 14:44:03"
+    },
+    {
+      "id": "1",
+      "lawsuitKey": "Hernia Mesh",
+      "title": "Hernia Mesh Mass-Tort Digital Acquisition Marketing Brief",
+      "content_length": "34482",
+      "updatedAt": "2026-05-11 14:44:03"
+    },
+    {
+      "id": "6",
+      "lawsuitKey": "Illinois Juvenile Detention",
+      "title": "ILM Illinois Institutional Abuse Claims Marketing Brief",
+      "content_length": "39130",
+      "updatedAt": "2026-05-11 14:44:04"
+    },
+    {
+      "id": "3",
+      "lawsuitKey": "NY Juvenile Detention",
+      "title": "New York Juvenile Detention Abuse Lawsuit Research Brief",
+      "content_length": "42573",
+      "updatedAt": "2026-05-11 14:44:03"
+    },
+    {
+      "id": "2",
+      "lawsuitKey": "PowerPort",
+      "title": "PowerPort (Bard/BD) MDL 3081 Marketing Brief",
+      "content_length": "30938",
+      "updatedAt": "2026-05-11 14:44:03"
+    },
+    {
+      "id": "5",
+      "lawsuitKey": "Social Media Addiction",
+      "title": "Social Media Addiction Lawsuit Marketing Brief",
+      "content_length": "46168",
+      "updatedAt": "2026-05-11 14:44:04"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlawsuitKey\ttitle\tcontent_length\tupdatedAt\n4\tDepo-Provera\tDepo-Provera Meningioma Lawsuit Marketing Brief\t35701\t2026-05-11 14:44:03\n1\tHernia Mesh\tHernia Mesh Mass-Tort Digital Acquisition Marketing Brief\t34482\t2026-05-11 14:44:03\n6\tIllinois Juvenile Detention\tILM Illinois Institutional Abuse Claims Marketing Brief\t39130\t2026-05-11 14:44:04\n3\tNY Juvenile Detention\tNew York Juvenile Detention Abuse Lawsuit Research Brief\t42573\t2026-05-11 14:44:03\n2\tPowerPort\tPowerPort (Bard/BD) MDL 3081 Marketing Brief\t30938\t2026-05-11 14:44:03\n5\tSocial Media Addiction\tSocial Media Addiction Lawsuit Marketing Brief\t46168\t2026-05-11 14:44:04\n",
+  "stderr": "",
+  "execution_time_ms": 2063
+}

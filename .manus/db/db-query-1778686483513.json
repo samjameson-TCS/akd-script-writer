@@ -1,0 +1,40 @@
+{
+  "query": "SELECT id, title, LENGTH(content) as content_length FROM research_docs ORDER BY title;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PSucjba86eoTqFC.f7a34347a3f5 --database QnFo973ajezBeVYDwDUoyf --execute SELECT id, title, LENGTH(content) as content_length FROM research_docs ORDER BY title;",
+  "rows": [
+    {
+      "id": "4",
+      "title": "Depo-Provera Meningioma Lawsuit Marketing Brief",
+      "content_length": "35701"
+    },
+    {
+      "id": "1",
+      "title": "Hernia Mesh Mass-Tort Digital Acquisition Marketing Brief",
+      "content_length": "34482"
+    },
+    {
+      "id": "6",
+      "title": "ILM Illinois Institutional Abuse Claims Marketing Brief",
+      "content_length": "39130"
+    },
+    {
+      "id": "3",
+      "title": "New York Juvenile Detention Abuse Lawsuit Research Brief",
+      "content_length": "42573"
+    },
+    {
+      "id": "2",
+      "title": "PowerPort (Bard/BD) MDL 3081 Marketing Brief",
+      "content_length": "30938"
+    },
+    {
+      "id": "5",
+      "title": "Social Media Addiction Lawsuit Marketing Brief",
+      "content_length": "46168"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\ttitle\tcontent_length\n4\tDepo-Provera Meningioma Lawsuit Marketing Brief\t35701\n1\tHernia Mesh Mass-Tort Digital Acquisition Marketing Brief\t34482\n6\tILM Illinois Institutional Abuse Claims Marketing Brief\t39130\n3\tNew York Juvenile Detention Abuse Lawsuit Research Brief\t42573\n2\tPowerPort (Bard/BD) MDL 3081 Marketing Brief\t30938\n5\tSocial Media Addiction Lawsuit Marketing Brief\t46168\n",
+  "stderr": "",
+  "execution_time_ms": 1869
+}

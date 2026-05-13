@@ -111,3 +111,24 @@
 - [x] Frontend: Regenerate button uses the full thread automatically
 - [x] Frontend: Dashboard save dialog shows "Promote to global KB?" checklist for session comments
 - [x] Update tests for new procedures — 37/37 passing
+
+## Phase 14: Import Missing Foundational Training Data
+- [ ] Scrape Winning Scripts Notion page and parse all scripts (pending — Notion toggles blocked)
+- [ ] Import winning scripts into saved_scripts table as AI training examples (pending)
+- [ ] Scrape Scripts per Lawsuit Notion page and parse per-lawsuit examples (pending)
+- [ ] Import Scripts per Lawsuit into saved_scripts as reference material (pending)
+- [ ] Download and parse Google Drive policy PDF (buyer-specific word rules) (pending)
+- [ ] Add policy word rules to compliance system (pending)
+- [x] Import 8 uploaded research docs: PowerPort, Depo-Provera, Hernia Mesh (merged), Dupixent, GLP-1, MVA, Snapchat, Talcum Powder, Rideshare (new)
+- [x] Verify all imported data is accessible to AI prompt builder
+- [x] Run tests and save checkpoint
+
+## Phase 15: Buyer Spec Sheets System
+- [x] DB schema: add buyer_specs table (id, buyerName, buyerCode, lawsuitKeys, content, notes, createdAt, updatedAt)
+- [x] Seed all 23 buyers from Notion page as placeholder entries
+- [x] tRPC: buyerSpecs.list, buyerSpecs.getById, buyerSpecs.upsert, buyerSpecs.delete
+- [x] Add Buyer selector dropdown to Generate form (optional — "No buyer spec" default)
+- [x] Inject selected buyer spec into AI system prompt for generate and regenerateOne
+- [x] Build Buyer Specs page with sidebar nav entry, list view, full spec viewer, and add/edit/delete dialog
+- [x] Add Buyer Specs to sidebar nav
+- [ ] Paste actual criteria content for each buyer (user action required)

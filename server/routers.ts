@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { z } from "zod";
-import { saveGeneratedScripts, getScriptHistory, getScriptById, saveFeedback, getFeedbackForScript, saveKbDocument, getKbDocuments, listResearchDocs, getResearchDocByKey, getResearchDocById, saveLawsuitUpdates, getLawsuitUpdates, getLastScrapeTime, saveScriptToDashboard, listSavedScripts, deleteSavedScript, addScriptComment, getScriptCommentsByName, promoteScriptComment, getUnpromotedComments } from "./db";
+import { saveGeneratedScripts, getScriptHistory, getScriptById, saveFeedback, getFeedbackForScript, saveKbDocument, getKbDocuments, listResearchDocs, getResearchDocByKey, getResearchDocById, saveLawsuitUpdates, getLawsuitUpdates, getLastScrapeTime, saveScriptToDashboard, listSavedScripts, deleteSavedScript, addScriptComment, getScriptCommentsByName, promoteScriptComment, getUnpromotedComments, listBuyerSpecs, getBuyerSpecById, getBuyerSpecByName, upsertBuyerSpec, deleteBuyerSpec } from "./db";
 import { scrapeAllLawsuits, scrapeUpdatesForLawsuit } from "./lawsuitScraper";
 import fs from "fs";
 import path from "path";
@@ -125,14 +125,18 @@ const LAWSUIT_CODES: Record<string, string> = {
   "NY Juvenile Detention": "NYJ",
   "Illinois Juvenile Detention": "ILJ",
   "Dupixent": "DUP",
+  "Snapchat": "SNAP",
   "Snapchat Abuse": "SAB",
+  "GLP-1 Medication": "GLP",
+  "MVA": "MVA",
+  "Talcum Powder": "TAL",
+  "Rideshare": "RIDE",
   "Camp Lejeune": "CAW",
   "Roundup": "RUP",
   "AFFF": "AFFF",
   "NEC Baby Formula": "NEC",
   "Ozempic": "OZE",
   "Paraquat": "PAR",
-  "Talcum Powder": "TAL",
   "Zantac": "ZAN",
   "Hair Relaxer": "HR",
   "LDS": "LDS",
@@ -148,6 +152,14 @@ const RESEARCH_KEY_MAP: Record<string, string> = {
   "Social Media Addiction": "Social Media Addiction",
   "NY Juvenile Detention": "NY Juvenile Detention",
   "Illinois Juvenile Detention": "Illinois Juvenile Detention",
+  // Newly imported research docs
+  "Dupixent": "Dupixent",
+  "GLP-1 Medication": "GLP-1 Medication",
+  "MVA": "MVA",
+  "Snapchat": "Snapchat",
+  "Snapchat Abuse": "Snapchat",
+  "Talcum Powder": "Talcum Powder",
+  "Rideshare": "Rideshare",
 };
 
 function getResearchKey(lawsuit: string): string | null {
@@ -179,6 +191,13 @@ const RESEARCH_BACKED_LAWSUITS = [
   "Social Media Addiction",
   "NY Juvenile Detention",
   "Illinois Juvenile Detention",
+  // Newly imported
+  "Dupixent",
+  "GLP-1 Medication",
+  "MVA",
+  "Snapchat",
+  "Talcum Powder",
+  "Rideshare",
 ];
 
 const LAWSUITS = Object.keys(LAWSUIT_CODES);
@@ -243,8 +262,15 @@ export const appRouter = router({
         extraInstructions: z.string().optional(),
         scriptNumberStart: z.number().default(1),
         pairsCount: z.number().min(1).max(5).default(3),
+        buyerSpecId: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
+        // ─── Buyer spec sheet ─────────────────────────────────────────────────────
+        const buyerSpec = input.buyerSpecId ? await getBuyerSpecById(input.buyerSpecId).catch(() => null) : null;
+        const buyerSpecSection = buyerSpec
+          ? `\n\n===\n\n## BUYER SPEC SHEET — ${buyerSpec.buyerName.toUpperCase()}\nThis script must comply with the following buyer-specific criteria. These rules OVERRIDE general guidelines where they conflict.\n\n${buyerSpec.content}${buyerSpec.notes ? `\n\n**Additional Notes:** ${buyerSpec.notes}` : ""}`
+          : "";
+
         // ─── Build targeted KB context (structured, relevant sections only) ──────
         const kbContext = buildKBContext({
           lawsuitKey: input.lawsuit,
@@ -287,7 +313,7 @@ export const appRouter = router({
 
         const systemPrompt = `You are the AKD Media AI Script Writer for AKD Media — a legal advertising company. You have been trained on the following structured knowledge base.
 
-${kbContext}${researchSection}${newsSection}${fewShotSection}
+${kbContext}${researchSection}${newsSection}${fewShotSection}${buyerSpecSection}
 
 ${complianceRules}
 
@@ -453,8 +479,15 @@ Return a JSON array of exactly ${input.pairsCount} pair objects.`;
         // Original generation context (for prompt fidelity)
         referenceScript: z.string().optional(),
         extraInstructions: z.string().optional(),
+        buyerSpecId: z.number().optional(),
       }))
       .mutation(async ({ input }) => {
+        // ─── Buyer spec sheet ─────────────────────────────────────────────────────
+        const buyerSpec = input.buyerSpecId ? await getBuyerSpecById(input.buyerSpecId).catch(() => null) : null;
+        const buyerSpecSection = buyerSpec
+          ? `\n\n===\n\n## BUYER SPEC SHEET — ${buyerSpec.buyerName.toUpperCase()}\nThis script must comply with the following buyer-specific criteria. These rules OVERRIDE general guidelines where they conflict.\n\n${buyerSpec.content}${buyerSpec.notes ? `\n\n**Additional Notes:** ${buyerSpec.notes}` : ""}`
+          : "";
+
         // ─── Build targeted KB context for iteration ──────────────────────────────
         const kbContext = buildKBContext({
           lawsuitKey: input.lawsuit,
@@ -495,7 +528,7 @@ Return a JSON array of exactly ${input.pairsCount} pair objects.`;
 
         const systemPrompt = `You are the AKD Media AI Script Writer for AKD Media. You have been trained on the following structured knowledge base.
 
-${kbContext}${researchSection}${newsSection}${fewShotSection}
+${kbContext}${researchSection}${newsSection}${fewShotSection}${buyerSpecSection}
 
 ${complianceRules}
 
@@ -863,6 +896,49 @@ Return a single script object with: hookCategory, hookAngle (most impactful word
       .query(async ({ input }) => {
         const comments = await getUnpromotedComments(input.sessionId, input.scriptName);
         return { comments };
+      }),
+  }),
+
+  // ─── Buyer Spec Sheets ──────────────────────────────────────────────────────
+  buyerSpecs: router({
+    list: protectedProcedure.query(async () => {
+      return listBuyerSpecs();
+    }),
+
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const spec = await getBuyerSpecById(input.id);
+        if (!spec) throw new TRPCError({ code: "NOT_FOUND" });
+        return spec;
+      }),
+
+    upsert: protectedProcedure
+      .input(z.object({
+        id: z.number().optional(),
+        buyerName: z.string().min(1),
+        buyerCode: z.string().optional(),
+        lawsuitKeys: z.string().optional(),
+        content: z.string().min(1),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const id = await upsertBuyerSpec({
+          id: input.id,
+          buyerName: input.buyerName,
+          buyerCode: input.buyerCode ?? null,
+          lawsuitKeys: input.lawsuitKeys ?? null,
+          content: input.content,
+          notes: input.notes ?? null,
+        });
+        return { id, success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteBuyerSpec(input.id);
+        return { success: true };
       }),
   }),
 

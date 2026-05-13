@@ -97,6 +97,20 @@ export const savedScripts = mysqlTable("saved_scripts", {
 export type SavedScript = typeof savedScripts.$inferSelect;
 export type InsertSavedScript = typeof savedScripts.$inferInsert;
 
+export const buyerSpecs = mysqlTable("buyer_specs", {
+  id: int("id").autoincrement().primaryKey(),
+  buyerName: varchar("buyerName", { length: 128 }).notNull().unique(), // e.g. "Broughton Partners"
+  buyerCode: varchar("buyerCode", { length: 32 }),                    // e.g. "BRO" — optional short code
+  lawsuitKeys: text("lawsuitKeys"),                                    // comma-separated lawsuits this buyer covers, e.g. "Hernia Mesh,PowerPort"
+  content: text("content").notNull(),                                  // Full spec/criteria markdown
+  notes: text("notes"),                                               // Internal notes
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BuyerSpec = typeof buyerSpecs.$inferSelect;
+export type InsertBuyerSpec = typeof buyerSpecs.$inferInsert;
+
 // Per-script comment thread — accumulates all feedback comments during iteration
 export const scriptComments = mysqlTable("script_comments", {
   id: int("id").autoincrement().primaryKey(),

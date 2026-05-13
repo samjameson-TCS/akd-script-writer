@@ -407,6 +407,7 @@ export default function Generate() {
   const [extraInstructions, setExtraInstructions] = useState("");
   const [scriptNumberStart, setScriptNumberStart] = useState(300);
   const [pairsCount, setPairsCount] = useState(3);
+  const [buyerSpecId, setBuyerSpecId] = useState<number | undefined>(undefined);
   const [results, setResults] = useState<{ scripts: GeneratedScript[]; sessionId: number | null } | null>(null);
 
   const generateMutation = trpc.scripts.generate.useMutation({
@@ -417,6 +418,7 @@ export default function Generate() {
   });
 
   const { data: metaData } = trpc.meta.useQuery();
+  const { data: buyerSpecsList = [] } = trpc.buyerSpecs.list.useQuery();
 
   const researchBackedLawsuits = metaData?.researchBackedLawsuits ?? [];
   const otherLawsuits = metaData?.otherLawsuits ?? [];
@@ -457,6 +459,7 @@ export default function Generate() {
       scriptNumberStart,
       referenceScript: referenceScript.trim() || undefined,
       extraInstructions: extraInstructions.trim() || undefined,
+      buyerSpecId: buyerSpecId,
     });
   };
 
@@ -553,6 +556,29 @@ export default function Generate() {
                   ].map((cl) => (
                     <SelectItem key={cl.level} value={String(cl.level)}>
                       {cl.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Buyer Spec */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Buyer Spec <span className="text-muted-foreground/50 normal-case font-normal">(optional)</span>
+              </Label>
+              <Select
+                value={buyerSpecId !== undefined ? String(buyerSpecId) : "none"}
+                onValueChange={(v) => setBuyerSpecId(v === "none" ? undefined : Number(v))}
+              >
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="No buyer spec selected" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No buyer spec</SelectItem>
+                  {(buyerSpecsList as Array<{id: number; buyerName: string; buyerCode: string | null}>).map((spec) => (
+                    <SelectItem key={spec.id} value={String(spec.id)}>
+                      {spec.buyerName}{spec.buyerCode ? ` (${spec.buyerCode})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>

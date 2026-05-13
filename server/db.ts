@@ -1,6 +1,6 @@
 import { desc, eq, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, generatedScripts, feedbackEntries, kbDocuments, researchDocs, lawsuitUpdates, savedScripts, scriptComments, InsertGeneratedScript, InsertFeedbackEntry, InsertKbDocument, InsertSavedScript, InsertScriptComment } from "../drizzle/schema";
+import { InsertUser, users, generatedScripts, feedbackEntries, kbDocuments, researchDocs, lawsuitUpdates, savedScripts, scriptComments, buyerSpecs, InsertGeneratedScript, InsertFeedbackEntry, InsertKbDocument, InsertSavedScript, InsertScriptComment, InsertBuyerSpec } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -263,4 +263,63 @@ export async function getUnpromotedComments(sessionId: number, scriptName: strin
       eq(scriptComments.promoted, 0)
     ))
     .orderBy(scriptComments.createdAt);
+}
+
+// ─── Buyer Specs ──────────────────────────────────────────────────────────────
+
+export async function listBuyerSpecs() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(buyerSpecs).orderBy(buyerSpecs.buyerName);
+}
+
+export async function getBuyerSpecById(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(buyerSpecs).where(eq(buyerSpecs.id, id)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function getBuyerSpecByName(buyerName: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(buyerSpecs).where(eq(buyerSpecs.buyerName, buyerName)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function upsertBuyerSpec(data: InsertBuyerSpec & { id?: number }): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const { sql: sqlCore, eq } = await import("drizzle-orm");
+  // If id is provided, do a direct UPDATE by id
+  if (data.id) {
+    await db.update(buyerSpecs)
+      .set({
+        buyerName: data.buyerName,
+        buyerCode: data.buyerCode ?? null,
+        lawsuitKeys: data.lawsuitKeys ?? null,
+        content: data.content,
+        notes: data.notes ?? null,
+      })
+      .where(eq(buyerSpecs.id, data.id));
+    return data.id;
+  }
+  // Otherwise INSERT with ON DUPLICATE KEY UPDATE (matches on buyerName unique constraint)
+  const result = await db.execute(
+    sqlCore`INSERT INTO buyer_specs (buyerName, buyerCode, lawsuitKeys, content, notes, createdAt, updatedAt)
+     VALUES (${data.buyerName}, ${data.buyerCode ?? null}, ${data.lawsuitKeys ?? null}, ${data.content}, ${data.notes ?? null}, NOW(), NOW())
+     ON DUPLICATE KEY UPDATE
+       buyerCode = VALUES(buyerCode),
+       lawsuitKeys = VALUES(lawsuitKeys),
+       content = VALUES(content),
+       notes = VALUES(notes),
+       updatedAt = NOW()`
+  ) as unknown as [{ insertId: number }, unknown];
+  return result[0]?.insertId ?? 0;
+}
+
+export async function deleteBuyerSpec(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(buyerSpecs).where(eq(buyerSpecs.id, id));
 }

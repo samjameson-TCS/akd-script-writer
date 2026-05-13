@@ -11,6 +11,7 @@ import KnowledgeBase from "./pages/KnowledgeBase";
 import ResearchLibrary from "./pages/ResearchLibrary";
 import LawsuitUpdates from "./pages/LawsuitUpdates";
 import Dashboard from "./pages/Dashboard";
+import BuyerSpecs from "./pages/BuyerSpecs";
 function Router() {
   return (
     <Switch>
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/research" component={ResearchLibrary} />
       <Route path="/updates" component={LawsuitUpdates} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/buyer-specs" component={BuyerSpecs} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
