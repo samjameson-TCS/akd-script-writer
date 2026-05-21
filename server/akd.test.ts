@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
+import { invokeLLM } from "./_core/llm";
 
 // ─── Mock LLM — returns pair-based structure OR single script ───────────────
 // The LLM mock needs to handle 3 different call shapes:
@@ -95,6 +96,17 @@ vi.mock("./db", () => ({
   getResearchDocById: vi.fn().mockResolvedValue({
     id: 1, lawsuitKey: "Hernia Mesh", title: "Hernia Mesh Brief", content: "# Research\n\nTest content.", summary: "Test summary", createdAt: new Date(), updatedAt: new Date(),
   }),
+  // Buyer specs
+  listBuyerSpecs: vi.fn().mockResolvedValue([]),
+  getBuyerSpecById: vi.fn().mockResolvedValue(null),
+  getBuyerSpecByName: vi.fn().mockResolvedValue(null),
+  upsertBuyerSpec: vi.fn().mockResolvedValue(1),
+  deleteBuyerSpec: vi.fn().mockResolvedValue(undefined),
+  // Hooks
+  listHooks: vi.fn().mockResolvedValue([]),
+  insertHook: vi.fn().mockResolvedValue(101),
+  updateHook: vi.fn().mockResolvedValue(undefined),
+  deleteHook: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ─── Mock lawsuitScraper — prevent real HTTP calls ──────────────────────────
@@ -963,5 +975,105 @@ describe("scripts.iterate", () => {
 
     expect(result.iterations).toBeDefined();
     expect(Array.isArray(result.iterations)).toBe(true);
+  });
+});
+
+// ─── Phase 17: Hooks Library tests ───────────────────────────────────────────
+
+describe("hooks.list — returns array (empty DB in test env)", () => {
+  it("returns an array from hooks.list", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.hooks.list({});
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("accepts category filter without throwing", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.hooks.list({ category: "Curiosity" });
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("accepts isWinning filter without throwing", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.hooks.list({ isWinning: true });
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it("accepts search filter without throwing", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.hooks.list({ search: "shocking" });
+    expect(Array.isArray(result)).toBe(true);
+  });
+});
+
+describe("hooks.add — inserts a hook and returns id", () => {
+  it("adds a hook and returns a numeric id", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.hooks.add({
+      hookLine: "TEST HOOK — auto-test entry",
+      category: "Curiosity",
+      source: "vitest",
+      isWinning: false,
+    });
+    expect(typeof result.id).toBe("number");
+    expect(result.id).toBeGreaterThan(0);
+  });
+});
+
+describe("hooks.update — updates an existing hook", () => {
+  it("updates a hook without throwing", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    // First add a hook to get a real id
+    const added = await caller.hooks.add({
+      hookLine: "UPDATE TEST HOOK",
+      category: "Betrayal",
+      source: "vitest",
+    });
+    const result = await caller.hooks.update({
+      id: added.id,
+      hookLine: "UPDATED HOOK LINE",
+      isWinning: true,
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("hooks.delete — deletes a hook", () => {
+  it("deletes a hook without throwing", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    const added = await caller.hooks.add({
+      hookLine: "DELETE TEST HOOK",
+      category: "Urgency",
+      source: "vitest",
+    });
+    const result = await caller.hooks.delete({ id: added.id });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("hooks.extractFromScript — extracts hook via AI", () => {
+  it("extracts a hook line and category from a script", async () => {
+    // LLM mock returns JSON with hookLine and category fields
+    vi.mocked(invokeLLM).mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              hookLine: "They hid this from you for years.",
+              category: "Betrayal",
+            }),
+          },
+        },
+      ],
+    });
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.hooks.extractFromScript({
+      scriptText: "They hid this from you for years.\n\nHernia mesh was failing.\n\nCheck your eligibility.",
+      lawsuitKey: "Hernia Mesh",
+      isWinning: true,
+    });
+    expect(result.hookLine).toBeDefined();
+    expect(result.category).toBeDefined();
+    expect(typeof result.id).toBe("number");
   });
 });

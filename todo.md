@@ -141,4 +141,18 @@
 - [x] Add scripts.iterate + scripts.detectLawsuit tRPC procedures with iteration-specific AI prompt
 - [x] Iterate results displayed as named cards (one per iteration type) with save + copy
 - [x] Iterate results can be saved to Dashboard and copied
-- [x] 37/37 tests passing
+- [x] 42/42 tests passing
+
+## Phase 17: Hooks Library
+- [x] Read Notion Hooks page (PDF provided) and extract all hooks
+- [x] Add hooks DB table (id, hookLine, category, source, lawsuitKey, isWinning, notes, createdAt)
+- [x] Seed 172 hooks from PDF into DB
+- [x] tRPC: hooks.list, hooks.add, hooks.update, hooks.delete, hooks.extractFromScript
+- [x] Auto-extract hook when script is saved to Dashboard (New Scripts mode)
+- [x] Build Hooks Library page with category filter pills, search, winning filter, grouped view
+- [x] Add/Edit/Delete hook via dialog
+- [x] Add Hooks Library to sidebar nav
+- [x] 42/42 tests passing
+- [x] 50/50 tests passing (8 new hooks-specific tests added)
+- [x] Fixed nested DashboardLayout bug in HooksLibrary.tsx
+- [x] Deduped hooks table to 172 unique entries

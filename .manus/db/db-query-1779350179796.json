@@ -1,0 +1,9 @@
+{
+  "query": "DELETE h1 FROM hooks h1\nINNER JOIN hooks h2\nWHERE h1.id > h2.id AND h1.hookLine = h2.hookLine;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PSucjba86eoTqFC.f7a34347a3f5 --database QnFo973ajezBeVYDwDUoyf --execute DELETE h1 FROM hooks h1\nINNER JOIN hooks h2\nWHERE h1.id > h2.id AND h1.hookLine = h2.hookLine;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1833
+}

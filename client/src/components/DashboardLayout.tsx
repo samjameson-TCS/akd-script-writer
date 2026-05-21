@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { Wand2, History, BookOpen, LogOut, PanelLeft, FlaskConical, Newspaper, LayoutDashboard, Users } from "lucide-react";
+import { Wand2, History, BookOpen, LogOut, PanelLeft, FlaskConical, Newspaper, LayoutDashboard, Users, Zap } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -34,6 +34,7 @@ const menuItems = [
   { icon: Newspaper, label: "Lawsuit Updates", path: "/updates" },
   { icon: FlaskConical, label: "Research Library", path: "/research" },
   { icon: Users, label: "Buyer Specs", path: "/buyer-specs" },
+  { icon: Zap, label: "Hooks Library", path: "/hooks" },
   { icon: BookOpen, label: "Knowledge Base", path: "/knowledge-base" },
 ];
 

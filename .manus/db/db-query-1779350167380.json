@@ -1,0 +1,58 @@
+{
+  "query": "SELECT COUNT(*) as total, COUNT(DISTINCT hookLine) as unique_hooks FROM hooks;\nSELECT category, COUNT(*) as count FROM hooks GROUP BY category ORDER BY count DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PSucjba86eoTqFC.f7a34347a3f5 --database QnFo973ajezBeVYDwDUoyf --execute SELECT COUNT(*) as total, COUNT(DISTINCT hookLine) as unique_hooks FROM hooks;\nSELECT category, COUNT(*) as count FROM hooks GROUP BY category ORDER BY count DESC;",
+  "rows": [
+    {
+      "total": "344",
+      "unique_hooks": "172"
+    },
+    {
+      "total": "category",
+      "unique_hooks": "count"
+    },
+    {
+      "total": "Curiosity",
+      "unique_hooks": "60"
+    },
+    {
+      "total": "Betrayal",
+      "unique_hooks": "58"
+    },
+    {
+      "total": "Urgency",
+      "unique_hooks": "52"
+    },
+    {
+      "total": "Story",
+      "unique_hooks": "48"
+    },
+    {
+      "total": "Compensation",
+      "unique_hooks": "46"
+    },
+    {
+      "total": "Pattern",
+      "unique_hooks": "46"
+    },
+    {
+      "total": "Authority",
+      "unique_hooks": "16"
+    },
+    {
+      "total": "Question",
+      "unique_hooks": "10"
+    },
+    {
+      "total": "Symptom",
+      "unique_hooks": "6"
+    },
+    {
+      "total": "Family",
+      "unique_hooks": "2"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\tunique_hooks\n344\t172\ncategory\tcount\nCuriosity\t60\nBetrayal\t58\nUrgency\t52\nStory\t48\nCompensation\t46\nPattern\t46\nAuthority\t16\nQuestion\t10\nSymptom\t6\nFamily\t2\n",
+  "stderr": "",
+  "execution_time_ms": 2113
+}

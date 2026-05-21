@@ -111,6 +111,20 @@ export const buyerSpecs = mysqlTable("buyer_specs", {
 export type BuyerSpec = typeof buyerSpecs.$inferSelect;
 export type InsertBuyerSpec = typeof buyerSpecs.$inferInsert;
 
+export const hooks = mysqlTable("hooks", {
+  id: int("id").autoincrement().primaryKey(),
+  hookLine: text("hookLine").notNull(),           // The hook template, e.g. "The shocking truth about [x]"
+  category: varchar("category", { length: 64 }).notNull(), // Curiosity, Betrayal, Compensation, Urgency, Story, Question, Pattern, Symptom, Authority
+  source: varchar("source", { length: 128 }),    // e.g. "HOOKS | Morane", "Hooks that already perform", "auto-extracted"
+  lawsuitKey: varchar("lawsuitKey", { length: 64 }), // null = universal; set if lawsuit-specific
+  isWinning: int("isWinning").default(0).notNull(), // 1 if extracted from a saved/iterated winning script
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Hook = typeof hooks.$inferSelect;
+export type InsertHook = typeof hooks.$inferInsert;
+
 // Per-script comment thread — accumulates all feedback comments during iteration
 export const scriptComments = mysqlTable("script_comments", {
   id: int("id").autoincrement().primaryKey(),

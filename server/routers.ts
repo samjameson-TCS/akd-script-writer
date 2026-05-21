@@ -4,7 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 import { z } from "zod";
-import { saveGeneratedScripts, getScriptHistory, getScriptById, saveFeedback, getFeedbackForScript, saveKbDocument, getKbDocuments, listResearchDocs, getResearchDocByKey, getResearchDocById, saveLawsuitUpdates, getLawsuitUpdates, getLastScrapeTime, saveScriptToDashboard, listSavedScripts, deleteSavedScript, addScriptComment, getScriptCommentsByName, promoteScriptComment, getUnpromotedComments, listBuyerSpecs, getBuyerSpecById, getBuyerSpecByName, upsertBuyerSpec, deleteBuyerSpec } from "./db";
+import { saveGeneratedScripts, getScriptHistory, getScriptById, saveFeedback, getFeedbackForScript, saveKbDocument, getKbDocuments, listResearchDocs, getResearchDocByKey, getResearchDocById, saveLawsuitUpdates, getLawsuitUpdates, getLastScrapeTime, saveScriptToDashboard, listSavedScripts, deleteSavedScript, addScriptComment, getScriptCommentsByName, promoteScriptComment, getUnpromotedComments, listBuyerSpecs, getBuyerSpecById, getBuyerSpecByName, upsertBuyerSpec, deleteBuyerSpec, listHooks, insertHook, updateHook, deleteHook } from "./db";
 import { scrapeAllLawsuits, scrapeUpdatesForLawsuit } from "./lawsuitScraper";
 import fs from "fs";
 import path from "path";
@@ -1066,6 +1066,123 @@ Return a JSON object with an \"iterations\" array of exactly 9 objects.`;
   }),
 
   // ─── Buyer Spec Sheets ──────────────────────────────────────────────────────
+  // ─── Hooks Library ──────────────────────────────────────────────────────────
+  hooks: router({
+    list: protectedProcedure
+      .input(z.object({
+        category: z.string().optional(),
+        lawsuitKey: z.string().optional(),
+        isWinning: z.boolean().optional(),
+        search: z.string().optional(),
+      }).optional())
+      .query(async ({ input }) => {
+        return await listHooks(input ?? {});
+      }),
+
+    add: protectedProcedure
+      .input(z.object({
+        hookLine: z.string().min(3),
+        category: z.string().min(1),
+        source: z.string().optional(),
+        lawsuitKey: z.string().optional(),
+        isWinning: z.boolean().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const id = await insertHook({
+          hookLine: input.hookLine,
+          category: input.category,
+          source: input.source ?? "manual",
+          lawsuitKey: input.lawsuitKey ?? null,
+          isWinning: input.isWinning ? 1 : 0,
+          notes: input.notes ?? null,
+        });
+        return { id };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        hookLine: z.string().min(3).optional(),
+        category: z.string().optional(),
+        source: z.string().optional(),
+        lawsuitKey: z.string().nullable().optional(),
+        isWinning: z.boolean().optional(),
+        notes: z.string().nullable().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        const patch: Record<string, unknown> = {};
+        if (data.hookLine !== undefined) patch.hookLine = data.hookLine;
+        if (data.category !== undefined) patch.category = data.category;
+        if (data.source !== undefined) patch.source = data.source;
+        if (data.lawsuitKey !== undefined) patch.lawsuitKey = data.lawsuitKey;
+        if (data.isWinning !== undefined) patch.isWinning = data.isWinning ? 1 : 0;
+        if (data.notes !== undefined) patch.notes = data.notes;
+        await updateHook(id, patch);
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteHook(input.id);
+        return { success: true };
+      }),
+
+    // Auto-extract hook from a script text using AI
+    extractFromScript: protectedProcedure
+      .input(z.object({
+        scriptText: z.string().min(10),
+        lawsuitKey: z.string().optional(),
+        isWinning: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `You are a hook extraction specialist for mass tort marketing scripts. Extract the opening hook line from the script — this is the very first sentence or phrase that grabs attention. Then classify it into one of these categories: Curiosity, Betrayal, Compensation, Urgency, Story, Question, Pattern, Symptom, Authority, Family.\n\nRespond ONLY with valid JSON: { "hookLine": "...", "category": "..." }`,
+            },
+            {
+              role: "user",
+              content: `Extract the hook from this script:\n\n${input.scriptText.slice(0, 800)}`,
+            },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "hook_extraction",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  hookLine: { type: "string" },
+                  category: { type: "string" },
+                },
+                required: ["hookLine", "category"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const content = response.choices?.[0]?.message?.content ?? "{}";
+        const parsed = JSON.parse(typeof content === "string" ? content : JSON.stringify(content)) as { hookLine: string; category: string };
+
+        const id = await insertHook({
+          hookLine: parsed.hookLine,
+          category: parsed.category,
+          source: "auto-extracted",
+          lawsuitKey: input.lawsuitKey ?? null,
+          isWinning: input.isWinning ? 1 : 0,
+          notes: null,
+        });
+
+        return { id, hookLine: parsed.hookLine, category: parsed.category };
+      }),
+  }),
+
   buyerSpecs: router({
     list: protectedProcedure.query(async () => {
       return listBuyerSpecs();
@@ -1167,3 +1284,4 @@ Return a JSON object with an \"iterations\" array of exactly 9 objects.`;
 });
 
 export type AppRouter = typeof appRouter;
+

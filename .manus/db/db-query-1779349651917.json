@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `hooks` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`hookLine` text NOT NULL,\n\t`category` varchar(64) NOT NULL,\n\t`source` varchar(128),\n\t`lawsuitKey` varchar(64),\n\t`isWinning` int NOT NULL DEFAULT 0,\n\t`notes` text,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `hooks_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PSucjba86eoTqFC.f7a34347a3f5 --database QnFo973ajezBeVYDwDUoyf --execute CREATE TABLE `hooks` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`hookLine` text NOT NULL,\n\t`category` varchar(64) NOT NULL,\n\t`source` varchar(128),\n\t`lawsuitKey` varchar(64),\n\t`isWinning` int NOT NULL DEFAULT 0,\n\t`notes` text,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `hooks_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2089
+}

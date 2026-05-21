@@ -323,3 +323,47 @@ export async function deleteBuyerSpec(id: number): Promise<void> {
   if (!db) throw new Error("Database not available");
   await db.delete(buyerSpecs).where(eq(buyerSpecs.id, id));
 }
+
+// ─── Hooks ────────────────────────────────────────────────────────────────────
+import { hooks, InsertHook } from "../drizzle/schema";
+
+export async function listHooks(opts?: { category?: string; lawsuitKey?: string; isWinning?: boolean; search?: string }) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select().from(hooks).orderBy(hooks.createdAt);
+  let result = rows;
+  if (opts?.category) result = result.filter(h => h.category === opts.category);
+  if (opts?.lawsuitKey) result = result.filter(h => h.lawsuitKey === opts.lawsuitKey || h.lawsuitKey === null);
+  if (opts?.isWinning !== undefined) result = result.filter(h => h.isWinning === (opts.isWinning ? 1 : 0));
+  if (opts?.search) {
+    const q = opts.search.toLowerCase();
+    result = result.filter(h => h.hookLine.toLowerCase().includes(q) || (h.source ?? "").toLowerCase().includes(q));
+  }
+  return result;
+}
+
+export async function insertHook(data: Omit<InsertHook, "id" | "createdAt">): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(hooks).values({
+    hookLine: data.hookLine,
+    category: data.category,
+    source: data.source ?? "manual",
+    lawsuitKey: data.lawsuitKey ?? null,
+    isWinning: data.isWinning ?? 0,
+    notes: data.notes ?? null,
+  });
+  return (result[0] as unknown as { insertId: number }).insertId ?? 0;
+}
+
+export async function updateHook(id: number, data: Partial<Omit<InsertHook, "id" | "createdAt">>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(hooks).set(data).where(eq(hooks.id, id));
+}
+
+export async function deleteHook(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(hooks).where(eq(hooks.id, id));
+}

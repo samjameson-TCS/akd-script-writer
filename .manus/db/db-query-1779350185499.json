@@ -1,0 +1,13 @@
+{
+  "query": "SELECT COUNT(*) as total FROM hooks;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user PSucjba86eoTqFC.f7a34347a3f5 --database QnFo973ajezBeVYDwDUoyf --execute SELECT COUNT(*) as total FROM hooks;",
+  "rows": [
+    {
+      "total": "172"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\n172\n",
+  "stderr": "",
+  "execution_time_ms": 1729
+}

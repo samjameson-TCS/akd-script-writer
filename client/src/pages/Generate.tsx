@@ -70,10 +70,19 @@ function ScriptCard({ script, sessionId, index, isPairStart, generationParams, o
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [savedToDashboard, setSavedToDashboard] = useState(false);
 
+  const extractHookMutation = trpc.hooks.extractFromScript.useMutation();
+
   const saveScriptMutation = trpc.savedScripts.save.useMutation({
     onSuccess: () => {
       setSavedToDashboard(true);
       toast.success("Saved to Dashboard", { description: script.name });
+      // Auto-extract hook and archive it in the Hooks Library
+      const fullScript = `${script.hook}\n\n${script.body}\n\n${script.cta}`;
+      extractHookMutation.mutate({
+        scriptText: fullScript,
+        lawsuitKey: generationParams.lawsuit,
+        isWinning: true,
+      });
       if (commentThread.length > 0) {
         toast.info("Tip: You can promote your session notes to global KB rules", {
           description: "Open the feedback panel and click ↑ next to any comment",
