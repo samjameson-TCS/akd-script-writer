@@ -805,3 +805,163 @@ describe("Phase 13 — scriptComments session thread", () => {
     expect(allContent).toContain("Make the tone more urgent");
   });
 });
+
+// ─── Phase 16: Iterate + DetectLawsuit tests ─────────────────────────────────
+
+describe("scripts.generate — avatar defaults to General Public when omitted", () => {
+  it("generates scripts without requiring avatar to be provided", async () => {
+    const caller = appRouter.createCaller(createAuthContext());
+    // No avatar field — should default to "General Public" and succeed
+    const result = await caller.scripts.generate({
+      lawsuit: "Hernia Mesh",
+      aggressiveScale: 2,
+      scriptNumberStart: 1,
+      pairsCount: 1,
+    });
+    expect(result.scripts).toBeDefined();
+    expect(result.scripts.length).toBeGreaterThan(0);
+  });
+});
+
+describe("scripts.detectLawsuit", () => {
+  it("returns a lawsuit name and confidence level from script text", async () => {
+    // The LLM mock returns JSON with a 'lawsuit' field — override to return detect-specific JSON
+    const { invokeLLM } = await import("./_core/llm");
+    (invokeLLM as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({ lawsuit: "Hernia Mesh", confidence: "high" }),
+          },
+        },
+      ],
+    });
+
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.scripts.detectLawsuit({
+      scriptText: "If you had hernia mesh surgery and experienced complications like pain or infection, you may be entitled to compensation.",
+    });
+
+    expect(result).toHaveProperty("lawsuit");
+    expect(result).toHaveProperty("confidence");
+    // The mock returns "Hernia Mesh" which is in LAWSUITS list → should pass through
+    expect(result.lawsuit).toBe("Hernia Mesh");
+    expect(result.confidence).toBe("high");
+  });
+
+  it("returns null lawsuit when detected lawsuit is not in the known list", async () => {
+    const { invokeLLM } = await import("./_core/llm");
+    (invokeLLM as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({ lawsuit: "Unknown Lawsuit XYZ", confidence: "low" }),
+          },
+        },
+      ],
+    });
+
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.scripts.detectLawsuit({
+      scriptText: "This is some random text that doesn't match any known lawsuit.",
+    });
+
+    expect(result.lawsuit).toBeNull();
+    expect(result.confidence).toBe("low");
+  });
+});
+
+describe("scripts.iterate", () => {
+  it("returns 9 iterations with the correct shape", async () => {
+    const { invokeLLM } = await import("./_core/llm");
+    const iterationTypes = [
+      "WINNING_ANGLE_REFRAMED",
+      "DIFFERENT_SEVERITY_TIER",
+      "DIFFERENT_ANGLE",
+      "MORE_AGGRESSIVE",
+      "SHORT_VERSION",
+      "COMPENSATION_VERSION",
+      "SYNONYM",
+      "SLANG",
+      "DIFFERENT_POV",
+    ];
+    const mockIterations = iterationTypes.map((type) => ({
+      type,
+      label: type.replace(/_/g, " ").toLowerCase(),
+      hook: `Hook for ${type}`,
+      body: `Body text for ${type} iteration.`,
+      cta: "Check your eligibility for free.",
+    }));
+
+    (invokeLLM as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({ iterations: mockIterations }),
+          },
+        },
+      ],
+    });
+
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.scripts.iterate({
+      originalScript: "HOOK\nThey hid this from you.\n\nBODY\nHernia mesh manufacturers knew.\n\nCTA\nCheck eligibility.",
+      lawsuit: "Hernia Mesh",
+      complianceLevel: 3,
+      platform: "Meta",
+    });
+
+    expect(result.iterations).toHaveLength(9);
+    expect(result.sessionId).toBe(42); // saveGeneratedScripts mock returns 42
+
+    // Each iteration must have type, label, hook, body, cta
+    for (const it of result.iterations) {
+      expect(it).toHaveProperty("type");
+      expect(it).toHaveProperty("label");
+      expect(it).toHaveProperty("hook");
+      expect(it).toHaveProperty("body");
+      expect(it).toHaveProperty("cta");
+      expect(typeof it.hook).toBe("string");
+      expect(it.hook.length).toBeGreaterThan(0);
+    }
+
+    // All 9 iteration types must be present
+    const types = result.iterations.map((it) => it.type);
+    expect(types).toContain("WINNING_ANGLE_REFRAMED");
+    expect(types).toContain("MORE_AGGRESSIVE");
+    expect(types).toContain("SHORT_VERSION");
+    expect(types).toContain("DIFFERENT_POV");
+  });
+
+  it("accepts buyerSpecId and complianceLevel without error", async () => {
+    const { invokeLLM } = await import("./_core/llm");
+    (invokeLLM as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              iterations: Array.from({ length: 9 }, (_, i) => ({
+                type: `TYPE_${i}`,
+                label: `Label ${i}`,
+                hook: `Hook ${i}`,
+                body: `Body ${i}`,
+                cta: `CTA ${i}`,
+              })),
+            }),
+          },
+        },
+      ],
+    });
+
+    const caller = appRouter.createCaller(createAuthContext());
+    const result = await caller.scripts.iterate({
+      originalScript: "HOOK\nThey hid this.\n\nBODY\nDetails here.\n\nCTA\nCheck now.",
+      lawsuit: "Depo-Provera",
+      complianceLevel: 1,
+      platform: "TikTok",
+    });
+
+    expect(result.iterations).toBeDefined();
+    expect(Array.isArray(result.iterations)).toBe(true);
+  });
+});

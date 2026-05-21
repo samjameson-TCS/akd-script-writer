@@ -255,7 +255,7 @@ export const appRouter = router({
         lawsuit: z.string(),
         hookCategory: z.string().optional(),
         aggressiveScale: z.number().min(1).max(5),
-        avatar: z.string(),
+        avatar: z.string().default("General Public"),
         platform: z.enum(["Meta", "TikTok", "YouTube", "Other"]).default("Other"),
         complianceLevel: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(3),
         referenceScript: z.string().optional(),
@@ -630,6 +630,172 @@ Return a single script object with: hookCategory, hookAngle (most impactful word
         const script = await getScriptById(input.id);
         if (!script) throw new TRPCError({ code: "NOT_FOUND" });
         return script;
+      }),
+
+    // ─── Detect lawsuit from pasted script text ───────────────────────────
+    detectLawsuit: protectedProcedure
+      .input(z.object({ scriptText: z.string().min(10) }))
+      .mutation(async ({ input }) => {
+        const lawsuitList = LAWSUITS.join(", ");
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: `You are a legal advertising expert. Given a script text, identify which lawsuit it belongs to from this list: ${lawsuitList}. Return ONLY a JSON object with "lawsuit" (exact name from the list) and "confidence" (high/medium/low).` },
+            { role: "user", content: `Script text:\n\n${input.scriptText}` },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "detect_output",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  lawsuit: { type: "string" },
+                  confidence: { type: "string" },
+                },
+                required: ["lawsuit", "confidence"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+        const raw = response.choices[0]?.message?.content ?? "{}";
+        const parsed = JSON.parse(typeof raw === "string" ? raw : "{}") as { lawsuit: string; confidence: string };
+        // Validate lawsuit is in our known list
+        const validLawsuit = LAWSUITS.includes(parsed.lawsuit) ? parsed.lawsuit : null;
+        return { lawsuit: validLawsuit, confidence: parsed.confidence };
+      }),
+
+    // ─── Iterate: generate 9 structured variations from a winning script ──
+    iterate: protectedProcedure
+      .input(z.object({
+        originalScript: z.string().min(10),
+        lawsuit: z.string(),
+        complianceLevel: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(3),
+        platform: z.enum(["Meta", "TikTok", "YouTube", "Other"]).default("Other"),
+        buyerSpecId: z.number().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        // ─── Buyer spec ─────────────────────────────────────────────────────
+        const buyerSpec = input.buyerSpecId ? await getBuyerSpecById(input.buyerSpecId).catch(() => null) : null;
+        const buyerSpecSection = buyerSpec
+          ? `\n\n===\n\n## BUYER SPEC SHEET — ${buyerSpec.buyerName.toUpperCase()}\nThis script must comply with the following buyer-specific criteria. These rules OVERRIDE general guidelines where they conflict.\n\n${buyerSpec.content}${buyerSpec.notes ? `\n\n**Additional Notes:** ${buyerSpec.notes}` : ""}`
+          : "";
+
+        // ─── KB context with iteration framework ────────────────────────────
+        const kbContext = buildKBContext({ lawsuitKey: input.lawsuit, forIteration: true });
+
+        // ─── Deep research doc ──────────────────────────────────────────────
+        const researchKey = getResearchKey(input.lawsuit);
+        const researchDoc = researchKey ? await getResearchDocByKey(researchKey).catch(() => null) : null;
+        const researchSection = researchDoc
+          ? `\n\n===\n\n## DEEP RESEARCH BRIEF — ${researchDoc.lawsuitKey.toUpperCase()}\n${researchDoc.content}`
+          : "";
+
+        // ─── Compliance rules ───────────────────────────────────────────────
+        const complianceRules = getComplianceRules(input.complianceLevel as ComplianceLevel);
+        const wordCountRule = input.platform === "Meta"
+          ? "Scripts for Meta MUST be 75\u2013100 words maximum."
+          : "Keep scripts 100\u2013150 words.";
+
+        const systemPrompt = `You are the AKD Media AI Script Writer. You specialise in creating structured iterations of winning legal advertising scripts.
+
+${kbContext}${researchSection}${buyerSpecSection}
+
+${complianceRules}
+
+CRITICAL RULES:
+- ${wordCountRule}
+- ABSOLUTE BAN: Never begin any hook with the word "Imagine".
+- Each iteration MUST be a complete, standalone script (HOOK + BODY + CTA).
+- Preserve the core legal claim and CTA structure from the original.
+- Each iteration type has a specific transformation goal — follow it precisely.
+- Sound conversational and human — never robotic or formal.`;
+
+        const userPrompt = `Here is the WINNING SCRIPT to iterate from:
+
+---
+${input.originalScript}
+---
+
+Lawsuit: ${input.lawsuit}
+Platform: ${input.platform}
+
+Generate ALL 9 iteration types below. For each, return a complete script with hook, body, and cta.
+
+1. WINNING_ANGLE_REFRAMED — Keep the same core angle but reframe the hook with different wording. Same emotional territory, fresh delivery.
+2. DIFFERENT_SEVERITY_TIER — Adjust the severity/intensity of the described experience (more subtle or more explicit depending on original).
+3. DIFFERENT_ANGLE — Completely different type of abuse, symptom, or injury angle while staying in the same lawsuit.
+4. MORE_AGGRESSIVE — Escalate the language, urgency, and emotional intensity. More direct, harder-hitting.
+5. SHORT_VERSION — Condense to the most essential hook + 1-2 sentence body + CTA. Punchy and tight.
+6. COMPENSATION_VERSION — Lead with or emphasise financial compensation/settlement amounts prominently.
+7. SYNONYM — Replace key words in the hook with synonyms or alternative legal/medical terminology.
+8. SLANG — Rewrite in casual, conversational slang as if speaking to a young audience. Keep it authentic.
+9. DIFFERENT_POV — Rewrite from a family member or third-party perspective (e.g. "My daughter told me...").
+
+Return a JSON object with an \"iterations\" array of exactly 9 objects.`;
+
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "iterations_output",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  iterations: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        type: { type: "string" },
+                        label: { type: "string" },
+                        hook: { type: "string" },
+                        body: { type: "string" },
+                        cta: { type: "string" },
+                      },
+                      required: ["type", "label", "hook", "body", "cta"],
+                      additionalProperties: false,
+                    },
+                  },
+                },
+                required: ["iterations"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+
+        const raw = response.choices[0]?.message?.content ?? "{}";
+        const parsed = JSON.parse(typeof raw === "string" ? raw : "{}") as {
+          iterations: Array<{ type: string; label: string; hook: string; body: string; cta: string }>;
+        };
+
+        // Save to DB as a generated script session
+        const sessionId = await saveGeneratedScripts({
+          lawsuit: input.lawsuit,
+          hookCategory: null,
+          aggressiveScale: 3,
+          avatar: "General Public",
+          referenceScript: input.originalScript,
+          extraInstructions: "Iteration mode",
+          scripts: parsed.iterations.map((it, i) => ({
+            name: `${getLawsuitCode(input.lawsuit)}-ITER-${it.type}`,
+            hook: it.hook,
+            hookAngle: it.type.toLowerCase().replace(/_/g, "-"),
+            body: it.body,
+            cta: it.cta,
+            pairIndex: i,
+            variantIndex: 0,
+          })),
+        });
+
+        return { iterations: parsed.iterations, sessionId };
       }),
   }),
 

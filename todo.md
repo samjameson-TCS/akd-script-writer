@@ -132,3 +132,13 @@
 - [x] Build Buyer Specs page with sidebar nav entry, list view, full spec viewer, and add/edit/delete dialog
 - [x] Add Buyer Specs to sidebar nav
 - [ ] Paste actual criteria content for each buyer (user action required)
+
+## Phase 16: New Scripts / Iterate Dual Mode
+- [x] Redesign Generate page with tab switcher: "New Scripts" vs "Iterate"
+- [x] New Scripts mode: simplified form — lawsuit selector first, then optional filters (avatar, platform, compliance, buyer spec, hook category, aggressive scale, pairs count)
+- [x] Iterate mode: paste existing script textarea, auto-detect lawsuit via AI, show detected lawsuit badge
+- [x] Iterate mode: generate 9 iteration types (Winning Angle Reframed, Different Severity Tier, Different Angle/Type, More Aggressive, Short Version, Compensation Version, Synonym, Slang, Different POV)
+- [x] Add scripts.iterate + scripts.detectLawsuit tRPC procedures with iteration-specific AI prompt
+- [x] Iterate results displayed as named cards (one per iteration type) with save + copy
+- [x] Iterate results can be saved to Dashboard and copied
+- [x] 37/37 tests passing
