@@ -433,6 +433,7 @@ function NewScriptsMode() {
   const [scriptNumberStart, setScriptNumberStart] = useState(300);
   const [pairsCount, setPairsCount] = useState(3);
   const [buyerSpecId, setBuyerSpecId] = useState<number | undefined>(undefined);
+  const [hookDirection, setHookDirection] = useState("");
   const [results, setResults] = useState<{ scripts: GeneratedScript[]; sessionId: number | null } | null>(null);
 
   const generateMutation = trpc.scripts.generate.useMutation({
@@ -468,7 +469,7 @@ function NewScriptsMode() {
     complianceLevel,
     scriptNumberStart,
     referenceScript: referenceScript.trim() || undefined,
-    extraInstructions: extraInstructions.trim() || undefined,
+    extraInstructions: extraInstructions.trim() ? (hookDirection.trim() ? `HOOK DIRECTION: ${hookDirection.trim()}\n\n${extraInstructions.trim()}` : extraInstructions.trim()) : (hookDirection.trim() ? `HOOK DIRECTION: ${hookDirection.trim()}` : undefined),
   };
 
   const handleGenerate = () => {
@@ -483,7 +484,10 @@ function NewScriptsMode() {
       pairsCount,
       scriptNumberStart,
       referenceScript: referenceScript.trim() || undefined,
-      extraInstructions: extraInstructions.trim() || undefined,
+      extraInstructions: [
+        hookDirection.trim() ? `HOOK DIRECTION: ${hookDirection.trim()}` : "",
+        extraInstructions.trim(),
+      ].filter(Boolean).join("\n\n") || undefined,
       buyerSpecId,
     });
   };
@@ -496,6 +500,19 @@ function NewScriptsMode() {
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lawsuit</Label>
             <LawsuitSelect value={lawsuit} onChange={setLawsuit} researchBackedLawsuits={researchBackedLawsuits} otherLawsuits={otherLawsuits} />
+          </div>
+
+          {/* Hook Direction — always visible, optional */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Hook Direction <span className="text-muted-foreground/50 normal-case font-normal">(optional — how you want the hook to begin or the angle)</span>
+            </Label>
+            <Textarea
+              placeholder="e.g. Start with a question about pain... or Use the angle of betrayal by the manufacturer..."
+              value={hookDirection}
+              onChange={(e) => setHookDirection(e.target.value)}
+              className="min-h-[64px] text-sm bg-muted/30 border-border/60 resize-none"
+            />
           </div>
 
           {/* Generate button — always visible */}
