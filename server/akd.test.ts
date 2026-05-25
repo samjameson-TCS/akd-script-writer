@@ -251,7 +251,7 @@ describe("scripts.generate — pair-based structure", () => {
       scriptNumberStart: 1,
       pairsCount: 3,
     });
-    expect(result.scripts[0]?.name).toMatch(/^SAB /);
+    expect(result.scripts[0]?.name).toMatch(/^SNAP /);
   });
 
   it("returns a sessionId from the DB insert", async () => {

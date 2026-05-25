@@ -382,11 +382,14 @@ function IterationCard({ iteration, lawsuit, complianceLevel, platform }: { iter
 
 // ─── LawsuitSelect (shared) ───────────────────────────────────────────────────
 
-function LawsuitSelect({ value, onChange, researchBackedLawsuits, otherLawsuits }: { value: string; onChange: (v: string) => void; researchBackedLawsuits: string[]; otherLawsuits: string[] }) {
+function LawsuitSelect({ value, onChange, researchBackedLawsuits, otherLawsuits, lawsuitCodes }: { value: string; onChange: (v: string) => void; researchBackedLawsuits: string[]; otherLawsuits: string[]; lawsuitCodes?: Record<string, string> }) {
+  const getCode = (l: string) => lawsuitCodes?.[l] ?? l;
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="h-9 text-sm">
-        <SelectValue placeholder="Select lawsuit..." />
+        <SelectValue placeholder="Select lawsuit...">
+          {value ? getCode(value) : null}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {researchBackedLawsuits.length > 0 && (
@@ -396,7 +399,7 @@ function LawsuitSelect({ value, onChange, researchBackedLawsuits, otherLawsuits 
               <SelectItem key={l} value={l}>
                 <span className="flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-primary inline-block" />
-                  {l}
+                  {getCode(l)}
                 </span>
               </SelectItem>
             ))}
@@ -408,7 +411,7 @@ function LawsuitSelect({ value, onChange, researchBackedLawsuits, otherLawsuits 
             <SelectGroup>
               <SelectLabel className="text-xs text-muted-foreground">Other Lawsuits</SelectLabel>
               {otherLawsuits.map((l: string) => (
-                <SelectItem key={l} value={l}>{l}</SelectItem>
+                <SelectItem key={l} value={l}>{getCode(l)}</SelectItem>
               ))}
             </SelectGroup>
           </>
@@ -448,6 +451,7 @@ function NewScriptsMode() {
 
   const researchBackedLawsuits = metaData?.researchBackedLawsuits ?? [];
   const otherLawsuits = metaData?.otherLawsuits ?? [];
+  const lawsuitCodes = metaData?.lawsuitCodes ?? {};
   const hookCategoryOptions = metaData?.hookCategories ?? [];
   const avatarOptions = metaData?.avatars ?? [];
 
@@ -499,7 +503,7 @@ function NewScriptsMode() {
             {/* Primary: Lawsuit only */}
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lawsuit</Label>
-            <LawsuitSelect value={lawsuit} onChange={setLawsuit} researchBackedLawsuits={researchBackedLawsuits} otherLawsuits={otherLawsuits} />
+            <LawsuitSelect value={lawsuit} onChange={setLawsuit} researchBackedLawsuits={researchBackedLawsuits} otherLawsuits={otherLawsuits} lawsuitCodes={lawsuitCodes} />
           </div>
 
           {/* Hook Direction — always visible, optional */}
@@ -695,6 +699,7 @@ function IterateMode() {
   const { data: buyerSpecsList = [] } = trpc.buyerSpecs.list.useQuery();
   const researchBackedLawsuits = metaData?.researchBackedLawsuits ?? [];
   const otherLawsuits = metaData?.otherLawsuits ?? [];
+  const lawsuitCodes = metaData?.lawsuitCodes ?? {};
 
   const detectMutation = trpc.scripts.detectLawsuit.useMutation({
     onSuccess: (data) => {
@@ -786,7 +791,7 @@ function IterateMode() {
               <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Lawsuit {detectedLawsuit ? <span className="text-muted-foreground/50 normal-case font-normal">(auto-detected — override if needed)</span> : <span className="text-muted-foreground/50 normal-case font-normal">(select or auto-detect above)</span>}
               </Label>
-              <LawsuitSelect value={manualLawsuit} onChange={setManualLawsuit} researchBackedLawsuits={researchBackedLawsuits} otherLawsuits={otherLawsuits} />
+              <LawsuitSelect value={manualLawsuit} onChange={setManualLawsuit} researchBackedLawsuits={researchBackedLawsuits} otherLawsuits={otherLawsuits} lawsuitCodes={lawsuitCodes} />
             </div>
           </div>
 
