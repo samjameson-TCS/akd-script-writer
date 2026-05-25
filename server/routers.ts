@@ -124,6 +124,7 @@ const LAWSUIT_CODES: Record<string, string> = {
   "Social Media Addiction": "SMA",
   "NY Juvenile Detention": "NYJ",
   "Illinois Juvenile Detention": "ILJ",
+  "Illinois Sexual Abuse (Youth Center)": "ILH",
   "Dupixent": "DUP",
   "Snapchat": "SNAP",
   "Snapchat Abuse": "SAB",
@@ -152,6 +153,7 @@ const RESEARCH_KEY_MAP: Record<string, string> = {
   "Social Media Addiction": "Social Media Addiction",
   "NY Juvenile Detention": "NY Juvenile Detention",
   "Illinois Juvenile Detention": "Illinois Juvenile Detention",
+  "Illinois Sexual Abuse (Youth Center)": "Illinois Sexual Abuse (Youth Center)",
   // Newly imported research docs
   "Dupixent": "Dupixent",
   "GLP-1 Medication": "GLP-1 Medication",
@@ -191,6 +193,7 @@ const RESEARCH_BACKED_LAWSUITS = [
   "Social Media Addiction",
   "NY Juvenile Detention",
   "Illinois Juvenile Detention",
+  "Illinois Sexual Abuse (Youth Center)",
   // Newly imported
   "Dupixent",
   "GLP-1 Medication",
@@ -894,7 +897,7 @@ Return a JSON object with an \"iterations\" array of exactly 9 objects.`;
     // Manual trigger: scrape all 6 research-backed lawsuits
     scrapeAll: protectedProcedure.mutation(async () => {
       const allArticles = await scrapeAllLawsuits();
-      const RESEARCH_BACKED = ["Hernia Mesh", "PowerPort", "Depo-Provera", "Social Media Addiction", "NY Juvenile Detention", "Illinois Juvenile Detention"];
+      const RESEARCH_BACKED = ["Hernia Mesh", "PowerPort", "Depo-Provera", "Social Media Addiction", "NY Juvenile Detention", "Illinois Juvenile Detention", "Illinois Sexual Abuse (Youth Center)"];
       let totalSaved = 0;
 
       for (const lawsuitKey of RESEARCH_BACKED) {
