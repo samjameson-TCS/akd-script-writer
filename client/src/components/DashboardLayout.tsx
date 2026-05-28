@@ -237,6 +237,14 @@ function DashboardLayoutContent({
             </div>
           </div>
         )}
+        <div className="w-full">
+          <img
+            src="/manus-storage/TCS_Banner_2_ba4330a5.png"
+            alt="Tort Claim Strategies"
+            className="w-full h-auto block"
+            style={{ maxHeight: '90px', objectFit: 'cover', objectPosition: 'center' }}
+          />
+        </div>
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
     </>
